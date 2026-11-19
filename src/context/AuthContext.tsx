@@ -11,6 +11,7 @@ interface AuthContextType {
   signup: (fullName: string, email: string, password?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   updateProfile: (updated: Partial<UserProfile>) => void;
+  switchDemoUser: (userProfile: UserProfile) => void;
   isSupabaseConnected: boolean;
 }
 
@@ -206,6 +207,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(newUser);
   };
 
+  const switchDemoUser = (profile: UserProfile) => {
+    setUser(profile);
+    localStorage.setItem('narmis_auth_user', JSON.stringify(profile));
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -216,6 +222,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signup,
         logout,
         updateProfile,
+        switchDemoUser,
         isSupabaseConnected: isSupabaseConfigured,
       }}
     >

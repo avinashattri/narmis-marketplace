@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Listing } from '../../types';
 import { useMarketplace } from '../../context/MarketplaceContext';
+import { useToast } from '../../context/ToastContext';
 import {
   Heart,
   MapPin,
@@ -19,6 +20,7 @@ interface ProductCardProps {
 
 export const ProductCard: React.FC<ProductCardProps> = ({ listing }) => {
   const { toggleSaveListing, isSaved } = useMarketplace();
+  const { showToast } = useToast();
   const saved = isSaved(listing.id);
   const navigate = useNavigate();
 
@@ -96,6 +98,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ listing }) => {
           onClick={(e) => {
             e.stopPropagation();
             toggleSaveListing(listing.id);
+            showToast(saved ? 'Removed from saved items' : 'Saved to your favorites', 'info');
           }}
           className={`absolute top-2.5 right-2.5 z-20 p-2 rounded-full backdrop-blur-md transition-all ${
             saved

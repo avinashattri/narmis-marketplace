@@ -2,8 +2,10 @@ import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { MarketplaceProvider } from './context/MarketplaceContext';
+import { ToastProvider } from './context/ToastContext';
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
+import { DemoPersonaSwitcher } from './components/common/DemoPersonaSwitcher';
 
 // Pages
 import { HomePage } from './pages/HomePage';
@@ -34,32 +36,35 @@ export function App() {
     <BrowserRouter>
       <AuthProvider>
         <MarketplaceProvider>
-          <div className="flex flex-col min-h-screen bg-narmis-bg text-narmis-cream font-sans selection:bg-narmis-gold selection:text-narmis-charcoal">
-            <ScrollToTop />
-            <Navbar />
-            
-            <main className="flex-1">
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/explore" element={<ExplorePage />} />
-                <Route path="/rent" element={<RentPage />} />
-                <Route path="/trade" element={<TradePage />} />
-                <Route path="/purchase" element={<PurchasePage />} />
-                <Route path="/product/:id" element={<ProductDetailPage />} />
-                <Route path="/create-listing" element={<CreateListingPage />} />
-                <Route path="/messages" element={<MessagesPage />} />
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/profile/:id" element={<ProfilePage />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/signup" element={<SignupPage />} />
-                <Route path="/about" element={<AboutPage />} />
-                {/* Fallback */}
-                <Route path="*" element={<ExplorePage />} />
-              </Routes>
-            </main>
+          <ToastProvider>
+            <div className="flex flex-col min-h-screen bg-narmis-bg text-narmis-cream font-sans selection:bg-narmis-gold selection:text-narmis-charcoal">
+              <ScrollToTop />
+              <Navbar />
+              
+              <main className="flex-1">
+                <Routes>
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/explore" element={<ExplorePage />} />
+                  <Route path="/rent" element={<RentPage />} />
+                  <Route path="/trade" element={<TradePage />} />
+                  <Route path="/purchase" element={<PurchasePage />} />
+                  <Route path="/product/:id" element={<ProductDetailPage />} />
+                  <Route path="/create-listing" element={<CreateListingPage />} />
+                  <Route path="/messages" element={<MessagesPage />} />
+                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/profile/:id" element={<ProfilePage />} />
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/signup" element={<SignupPage />} />
+                  <Route path="/about" element={<AboutPage />} />
+                  {/* Fallback */}
+                  <Route path="*" element={<ExplorePage />} />
+                </Routes>
+              </main>
 
-            <Footer />
-          </div>
+              <Footer />
+              <DemoPersonaSwitcher />
+            </div>
+          </ToastProvider>
         </MarketplaceProvider>
       </AuthProvider>
     </BrowserRouter>
