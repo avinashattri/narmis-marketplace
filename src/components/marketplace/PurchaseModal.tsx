@@ -9,10 +9,11 @@ import {
   ShoppingBag,
   ShieldAlert,
   CheckCircle2,
-  Receipt,
   Truck,
   CreditCard,
   Sparkles,
+  Printer,
+  QrCode,
 } from 'lucide-react';
 
 interface PurchaseModalProps {
@@ -133,6 +134,38 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
               </div>
             </div>
 
+            {/* Handover Verification QR Code */}
+            <div className="p-4 rounded-2xl bg-narmis-forestDark/60 border border-narmis-gold/30 flex items-center justify-between text-left">
+              <div>
+                <span className="text-[10px] text-narmis-gold uppercase font-bold tracking-wider flex items-center gap-1">
+                  <QrCode className="w-3.5 h-3.5" />
+                  Handover Verification Pass
+                </span>
+                <p className="text-xs text-narmis-cream/80 font-medium mt-0.5">
+                  Present to seller at in-person meetup
+                </p>
+                <p className="text-[10px] text-narmis-cream/50 font-mono mt-0.5">
+                  PASS: {completedPurchase.receipt_number}
+                </p>
+              </div>
+
+              {/* Vector Simulated QR Code */}
+              <div className="bg-white p-1.5 rounded-xl shadow-md shrink-0">
+                <svg viewBox="0 0 48 48" width="48" height="48" fill="#142523">
+                  <rect x="4" y="4" width="16" height="16" fill="none" stroke="#142523" strokeWidth="3" />
+                  <rect x="8" y="8" width="8" height="8" />
+                  <rect x="28" y="4" width="16" height="16" fill="none" stroke="#142523" strokeWidth="3" />
+                  <rect x="32" y="8" width="8" height="8" />
+                  <rect x="4" y="28" width="16" height="16" fill="none" stroke="#142523" strokeWidth="3" />
+                  <rect x="8" y="32" width="8" height="8" />
+                  <rect x="24" y="24" width="4" height="4" />
+                  <rect x="32" y="24" width="6" height="4" />
+                  <rect x="24" y="32" width="6" height="6" />
+                  <rect x="34" y="34" width="8" height="8" />
+                </svg>
+              </div>
+            </div>
+
             <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-500/30 text-[11px] text-amber-200/90 text-left">
               <strong>Hackathon Note:</strong> This transaction was simulated with mock funds. A
               notification and receipt thread has been created in your messages to coordinate handover
@@ -140,6 +173,15 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
             </div>
 
             <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                onClick={() => {
+                  window.print();
+                }}
+                className="px-5 py-2.5 rounded-full bg-narmis-forestDark hover:bg-narmis-mountain text-narmis-parchment border border-narmis-mountain text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print Receipt</span>
+              </button>
               <button
                 onClick={() => {
                   onClose();
@@ -151,7 +193,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
               </button>
               <button
                 onClick={onClose}
-                className="px-6 py-2.5 rounded-full bg-narmis-mountain text-narmis-parchment text-xs font-medium hover:bg-narmis-mountain/80 transition-all"
+                className="px-5 py-2.5 rounded-full bg-narmis-mountain text-narmis-parchment text-xs font-medium hover:bg-narmis-mountain/80 transition-all"
               >
                 Close
               </button>

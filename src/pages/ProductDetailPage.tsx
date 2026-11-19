@@ -6,6 +6,8 @@ import { ProductCard } from '../components/marketplace/ProductCard';
 import { RentalRequestModal } from '../components/marketplace/RentalRequestModal';
 import { TradeOfferModal } from '../components/marketplace/TradeOfferModal';
 import { PurchaseModal } from '../components/marketplace/PurchaseModal';
+import { useToast } from '../context/ToastContext';
+import { INITIAL_REVIEWS } from '../services/mockData';
 import {
   Heart,
   Share2,
@@ -26,11 +28,18 @@ export const ProductDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { getListing, listings, isSaved, toggleSaveListing, startOrGetConversation } = useMarketplace();
   const { user } = useAuth();
+  const { showToast } = useToast();
 
   const listing = getListing(id || '');
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isCopied, setIsCopied] = useState(false);
+
+  // Reviews state
+  const [reviewsList, setReviewsList] = useState(INITIAL_REVIEWS);
+  const [newRating, setNewRating] = useState(5);
+  const [newComment, setNewComment] = useState('');
+  const [isAddingReview, setIsAddingReview] = useState(false);
 
   // Modals state
   const [isRentalModalOpen, setIsRentalModalOpen] = useState(false);
@@ -76,7 +85,31 @@ export const ProductDetailPage: React.FC = () => {
     navigate('/messages');
   };
 
-  // Related items
+  const handleAddReview = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+
+    const newRev = {
+      id: 'rev-' + Date.now(),
+      reviewer_id: user?.id || 'demo-user',
+      reviewer: user || {
+        id: 'demo-user',
+        full_name: 'Verified Buyer',
+        avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+      },
+      target_user_id: listing?.user_id || '',
+      listing_id: listing?.id,
+      rating: newRating,
+      comment: newComment.trim(),
+      created_at: new Date().toISOString(),
+    };
+
+    setReviewsList((prev) => [newRev, ...prev]);
+    setNewComment('');
+    setIsAddingReview(false);
+    showToast('Your peer review has been posted!', 'success');
+  };
+
   const relatedListings = listings
     .filter((l) => l.id !== listing.id && (l.category === listing.category || l.listing_type === listing.listing_type))
     .slice(0, 3);
@@ -220,6 +253,90 @@ export const ProductDetailPage: React.FC = () => {
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* Community Reviews Section */}
+            <div className="bg-narmis-surface rounded-3xl p-6 sm:p-8 border border-narmis-mountain/50 space-y-6">
+              <div className="flex items-center justify-between pb-3 border-b border-narmis-mountain/40">
+                <div className="flex items-center gap-2">
+                  <Star className="w-5 h-5 text-amber-400 fill-current" />
+                  <h3 className="font-serif text-xl font-bold text-narmis-parchment">
+                    Community Reviews ({reviewsList.length})
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setIsAddingReview(!isAddingReview)}
+                  className="px-3 py-1.5 rounded-full bg-narmis-mountain hover:bg-narmis-mountain/80 border border-narmis-gold/30 text-xs font-semibold text-narmis-gold transition-colors"
+                >
+                  {isAddingReview ? 'Cancel' : '+ Write Review'}
+                </button>
+              </div>
+
+              {/* Add Review Form */}
+              {isAddingReview && (
+                <form onSubmit={handleAddReview} className="p-4 rounded-2xl bg-narmis-forestDark border border-narmis-mountain/60 space-y-3 animate-fadeIn">
+                  <h4 className="font-serif font-bold text-narmis-parchment text-sm">
+                    Leave a Verified Peer Review
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-narmis-cream/70">Rating:</span>
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setNewRating(star)}
+                          className={`p-1 ${newRating >= star ? 'text-amber-400' : 'text-narmis-cream/30'}`}
+                        >
+                          <Star className="w-4 h-4 fill-current" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <textarea
+                    rows={2}
+                    placeholder="Share details on handover, item condition, communication..."
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-narmis-surface border border-narmis-mountain/60 text-xs text-narmis-cream placeholder-narmis-cream/40 focus:outline-none focus:border-narmis-gold resize-none"
+                    required
+                  />
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-narmis-gold text-narmis-charcoal text-xs font-bold uppercase tracking-wider hover:bg-narmis-accent transition-all"
+                  >
+                    Post Review
+                  </button>
+                </form>
+              )}
+
+              {/* Reviews List */}
+              <div className="space-y-4">
+                {reviewsList.map((rev) => (
+                  <div key={rev.id} className="p-4 rounded-2xl bg-narmis-forestDark/50 border border-narmis-mountain/30 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={rev.reviewer?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
+                          alt={rev.reviewer?.full_name || 'Reviewer'}
+                          className="w-6 h-6 rounded-full object-cover"
+                        />
+                        <span className="text-xs font-bold text-narmis-parchment">
+                          {rev.reviewer?.full_name || 'Verified Member'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-0.5 text-amber-300">
+                        {[...Array(rev.rating)].map((_, i) => (
+                          <Star key={i} className="w-3 h-3 fill-current" />
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-xs text-narmis-cream/80 leading-relaxed italic">
+                      "{rev.comment}"
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Logo } from '../common/Logo';
+import { DemoGuideModal } from '../common/DemoGuideModal';
 import { useAuth } from '../../context/AuthContext';
 import { useMarketplace } from '../../context/MarketplaceContext';
 import {
@@ -21,6 +22,7 @@ export const Navbar: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [isDemoGuideOpen, setIsDemoGuideOpen] = useState(false);
 
   const { user, isAuthenticated, logout } = useAuth();
   const { conversations } = useMarketplace();
@@ -99,7 +101,16 @@ export const Navbar: React.FC = () => {
           </div>
 
           {/* Right Action Icons & Auth */}
-          <div className="hidden lg:flex items-center space-x-4">
+          <div className="hidden lg:flex items-center space-x-3">
+            {/* Hackathon Guide Modal Button */}
+            <button
+              onClick={() => setIsDemoGuideOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-narmis-mountain/60 hover:bg-narmis-mountain border border-narmis-gold/40 text-narmis-parchment transition-all hover:scale-105 active:scale-95"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-narmis-gold animate-pulse" />
+              <span>Demo Guide</span>
+            </button>
+
             {/* Create Listing Button */}
             <Link
               to="/create-listing"
@@ -342,6 +353,12 @@ export const Navbar: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Hackathon Demo Guide Modal */}
+      <DemoGuideModal
+        isOpen={isDemoGuideOpen}
+        onClose={() => setIsDemoGuideOpen(false)}
+      />
     </header>
   );
 };
