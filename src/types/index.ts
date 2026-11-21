@@ -144,3 +144,14 @@ export interface Review {
   comment: string;
   created_at: string;
 }
+
+export interface CommunityRequest {
+  id: string;
+  user_id: string;
+  user?: UserProfile;
+  item_name: string;
+  category?: ListingCategory;
+  listing_type?: ListingType;
+  details?: string;
+  created_at: string;
+}

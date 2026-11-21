@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMarketplace } from '../context/MarketplaceContext';
 import { useAuth } from '../context/AuthContext';
 import { ListingCategory, ListingCondition, ListingType } from '../types';
@@ -11,10 +11,11 @@ import {
   Sparkles,
   CheckCircle2,
   X,
-  Image as ImageIcon,
   ArrowRight,
   ArrowLeft,
   Eye,
+  Camera,
+  Star,
 } from 'lucide-react';
 
 const CATEGORIES: ListingCategory[] = [
@@ -40,6 +41,7 @@ const CONDITIONS: ListingCondition[] = [
 
 export const CreateListingPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { addListing } = useMarketplace();
   const { user, isAuthenticated } = useAuth();
 
@@ -47,11 +49,13 @@ export const CreateListingPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<number>(1);
 
   // Form State
-  const [title, setTitle] = useState('');
+  const [title, setTitle] = useState(searchParams.get('title') || '');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<ListingCategory>('Electronics');
   const [condition, setCondition] = useState<ListingCondition>('Excellent');
-  const [listingType, setListingType] = useState<ListingType>('rent');
+  const [listingType, setListingType] = useState<ListingType>(
+    (searchParams.get('type') as ListingType) || 'rent'
+  );
   const [location, setLocation] = useState(user?.location || 'Indiranagar, Bengaluru');
 
   // Conditional Fields: Rent
@@ -71,19 +75,22 @@ export const CreateListingPage: React.FC = () => {
     'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=800',
   ]);
   const [imageUrlInput, setImageUrlInput] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Handle local image file upload preview
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    Array.from(files).forEach((file) => {
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setErrorMsg('Image size should be below 5MB.');
+  // Process a list of File objects into base64 data URLs
+  const processFiles = (fileList: FileList | File[]) => {
+    Array.from(fileList).forEach((file) => {
+      if (!file.type.startsWith('image/')) {
+        setErrorMsg('Only image files (JPG, PNG, WEBP) are supported.');
+        return;
+      }
+      if (file.size > 8 * 1024 * 1024) {
+        setErrorMsg('Image size should be below 8MB.');
         return;
       }
       const reader = new FileReader();
@@ -93,6 +100,44 @@ export const CreateListingPage: React.FC = () => {
         }
       };
       reader.readAsDataURL(file);
+    });
+  };
+
+  // Handle local image file upload preview
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    processFiles(files);
+    e.target.value = '';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processFiles(e.dataTransfer.files);
+    }
+  };
+
+  const handleSetPrimary = (index: number) => {
+    if (index === 0) return;
+    setImages((prev) => {
+      const copy = [...prev];
+      const [selected] = copy.splice(index, 1);
+      return [selected, ...copy];
     });
   };
 
@@ -515,24 +560,78 @@ export const CreateListingPage: React.FC = () => {
 
               {/* Photo Upload Box */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-narmis-parchment/90 mb-2">
-                  Product Photos *
-                </label>
-                <div className="border-2 border-dashed border-narmis-mountain rounded-2xl p-6 text-center hover:border-narmis-gold transition-colors bg-narmis-forestDark/40">
-                  <Upload className="w-8 h-8 text-narmis-gold mx-auto mb-2" />
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-narmis-parchment/90">
+                    Product Photos * ({images.length} added)
+                  </label>
+                  {images.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setImages([])}
+                      className="text-[11px] text-red-400 hover:text-red-300 font-medium transition-colors"
+                    >
+                      Clear all photos
+                    </button>
+                  )}
+                </div>
+
+                {/* Drag & Drop Area */}
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all ${
+                    isDragging
+                      ? 'border-narmis-gold bg-narmis-gold/10 scale-[1.01]'
+                      : 'border-narmis-mountain/80 hover:border-narmis-gold/70 bg-narmis-forestDark/50'
+                  }`}
+                >
+                  <Upload className={`w-8 h-8 mx-auto mb-2 transition-transform ${isDragging ? 'text-narmis-gold scale-125' : 'text-narmis-gold'}`} />
                   <p className="text-xs sm:text-sm font-semibold text-narmis-parchment">
-                    Drag and drop product photos here, or click to upload
+                    {isDragging ? 'Drop your photos right here!' : 'Drag & drop product photos here'}
                   </p>
-                  <p className="text-[11px] text-narmis-cream/60 mt-1">
-                    Supports JPG, PNG, WEBP up to 5MB
+                  <p className="text-[11px] text-narmis-cream/60 mt-1 mb-4">
+                    Supports high-resolution JPG, PNG, WEBP from your computer or phone
                   </p>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleFileUpload}
-                    className="mt-3 text-xs text-narmis-cream file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-narmis-gold file:text-narmis-charcoal cursor-pointer"
-                  />
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-wrap items-center justify-center gap-3">
+                    {/* File Picker */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-4 py-2 rounded-full bg-narmis-gold hover:bg-narmis-accent text-narmis-charcoal text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-md"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Choose Files</span>
+                    </button>
+
+                    {/* Camera Capture */}
+                    <input
+                      ref={cameraInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="px-4 py-2 rounded-full bg-narmis-mountain hover:bg-narmis-mountain/80 text-narmis-parchment text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 border border-narmis-gold/30"
+                    >
+                      <Camera className="w-3.5 h-3.5 text-narmis-gold" />
+                      <span>Take Photo</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Add via direct Image URL */}
@@ -542,6 +641,12 @@ export const CreateListingPage: React.FC = () => {
                     placeholder="Or paste an image web URL..."
                     value={imageUrlInput}
                     onChange={(e) => setImageUrlInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddImageUrl();
+                      }
+                    }}
                     className="flex-1 px-3 py-2 rounded-xl bg-narmis-forestDark border border-narmis-mountain/60 text-xs text-narmis-cream placeholder-narmis-cream/40 focus:outline-none focus:border-narmis-gold"
                   />
                   <button
@@ -554,26 +659,59 @@ export const CreateListingPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Uploaded Photos Preview Row */}
+              {/* Uploaded Photos Preview Row with Cover Photo star & Reorder */}
               {images.length > 0 && (
                 <div>
-                  <span className="text-xs text-narmis-cream/70 mb-2 block font-medium">
-                    Uploaded Photos ({images.length})
-                  </span>
-                  <div className="flex flex-wrap gap-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-narmis-cream/80 font-medium">
+                      Photos ({images.length}) — Click <Star className="w-3 h-3 inline text-narmis-gold" /> on any photo to set as cover
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
                     {images.map((img, idx) => (
                       <div
                         key={idx}
-                        className="relative w-24 h-24 rounded-xl overflow-hidden border border-narmis-mountain/60 group shadow-md"
+                        className={`relative aspect-square rounded-xl overflow-hidden border group shadow-md transition-all ${
+                          idx === 0
+                            ? 'border-narmis-gold ring-2 ring-narmis-gold/50'
+                            : 'border-narmis-mountain/60 hover:border-narmis-parchment/60'
+                        }`}
                       >
-                        <img src={img} alt="Preview" className="w-full h-full object-cover" />
+                        <img src={img} alt={`Product ${idx + 1}`} className="w-full h-full object-cover" />
+
+                        {/* Primary Cover Badge */}
+                        {idx === 0 && (
+                          <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded-md bg-narmis-gold text-narmis-charcoal text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 shadow">
+                            <Star className="w-2.5 h-2.5 fill-current" />
+                            <span>Cover</span>
+                          </div>
+                        )}
+
+                        {/* Set as Cover button for non-primary photos */}
+                        {idx !== 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleSetPrimary(idx)}
+                            title="Set as main cover photo"
+                            className="absolute top-1 left-1 p-1 rounded-full bg-black/60 text-narmis-cream/70 hover:text-narmis-gold opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Star className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
+                        {/* Remove Image Button */}
                         <button
                           type="button"
                           onClick={() => handleRemoveImage(idx)}
+                          title="Remove photo"
                           className="absolute top-1 right-1 p-1 rounded-full bg-black/70 text-red-400 hover:text-red-300 opacity-90 group-hover:opacity-100 transition-opacity"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
+
+                        <div className="absolute bottom-1 right-1 text-[9px] px-1 bg-black/60 text-white/80 rounded">
+                          #{idx + 1}
+                        </div>
                       </div>
                     ))}
                   </div>

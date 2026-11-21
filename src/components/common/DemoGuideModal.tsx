@@ -155,7 +155,7 @@ export const DemoGuideModal: React.FC<DemoGuideModalProps> = ({ isOpen, onClose 
                 Navigate to <strong className="text-narmis-gold">Trade</strong> in the navigation bar.
               </li>
               <li>
-                Click on the <strong className="text-narmis-parchment">Keychron Q1 Pro Mechanical Keyboard</strong> (owned by Aarav Sharma).
+                Click on the <strong className="text-narmis-parchment">Keychron Q1 Pro Mechanical Keyboard</strong> (owned by Sanchit).
               </li>
               <li>
                 Click <strong className="text-narmis-gold">Make Trade Offer</strong>. Notice the automated valuation board that calculates the value difference between the keyboard and your offer.
@@ -164,7 +164,7 @@ export const DemoGuideModal: React.FC<DemoGuideModalProps> = ({ isOpen, onClose 
                 Submit your offer. Notice how an interactive <strong className="text-narmis-parchment">Trade Proposal Card</strong> is created in <strong className="text-narmis-gold">Messages</strong>.
               </li>
               <li>
-                Click the bottom-right <strong className="text-narmis-gold">Demo Switcher</strong> and switch to <strong className="text-narmis-parchment">Aarav Sharma</strong>. Open the <strong className="text-narmis-gold">Dashboard → Trades tab</strong> to see the incoming offer and click <em>Accept</em> or <em>Reject</em>!
+                Click the bottom-right <strong className="text-narmis-gold">Demo Switcher</strong> and switch to <strong className="text-narmis-parchment">Sanchit</strong>. Open the <strong className="text-narmis-gold">Dashboard → Trades tab</strong> to see the incoming offer and click <em>Accept</em> or <em>Reject</em>!
               </li>
             </ol>
 
@@ -193,7 +193,7 @@ export const DemoGuideModal: React.FC<DemoGuideModalProps> = ({ isOpen, onClose 
                 Submit the request. An active rental card is automatically dispatched into the owner's chat thread.
               </li>
               <li>
-                Switch to <strong className="text-narmis-parchment">Priya Patel</strong> using the Demo Switcher to review and approve the booking in the Dashboard!
+                Switch to <strong className="text-narmis-parchment">Harshit</strong> using the Demo Switcher to review and approve the booking in the Dashboard!
               </li>
             </ol>
 

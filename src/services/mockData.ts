@@ -1,10 +1,10 @@
-import { Listing, UserProfile, Conversation, Message, TradeOffer, RentalRequest, PurchaseTransaction, Review } from '../types';
+import { Listing, UserProfile, Conversation, Message, TradeOffer, RentalRequest, PurchaseTransaction, Review, CommunityRequest } from '../types';
 
 export const CURRENT_USER: UserProfile = {
   id: 'u0000000-user-0000-0000-000000000000',
-  full_name: 'Kabir Das',
-  email: 'kabir.demo@narmis.in',
-  avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+  full_name: 'Vipan',
+  email: 'vipan.demo@narmis.in',
+  avatar_url: 'https://ui-avatars.com/api/?name=Vipan&background=304943&color=EAD3AA&bold=true&size=150',
   bio: 'Hardware tinkerer, badminton player & minimalist explorer. Believer in giving things a second life.',
   location: 'Koramangala 4th Block, Bengaluru',
   rating: 4.95,
@@ -16,9 +16,9 @@ export const DEMO_PROFILES: UserProfile[] = [
   CURRENT_USER,
   {
     id: 'a1111111-1111-1111-1111-111111111111',
-    full_name: 'Aarav Sharma',
-    email: 'aarav@narmis.in',
-    avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+    full_name: 'Sanchit',
+    email: 'sanchit@narmis.in',
+    avatar_url: 'https://ui-avatars.com/api/?name=Sanchit&background=B88A4A&color=142523&bold=true&size=150',
     bio: 'Tech enthusiast, mechanical keyboard collector, amateur photographer.',
     location: 'Indiranagar, Bengaluru',
     rating: 4.9,
@@ -27,9 +27,9 @@ export const DEMO_PROFILES: UserProfile[] = [
   },
   {
     id: 'b2222222-2222-2222-2222-222222222222',
-    full_name: 'Priya Patel',
-    email: 'priya@narmis.in',
-    avatar_url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150',
+    full_name: 'Harshit',
+    email: 'harshit@narmis.in',
+    avatar_url: 'https://ui-avatars.com/api/?name=Harshit&background=1D302C&color=F5E9D2&bold=true&size=150',
     bio: 'Film student, creative writer, cricket fan.',
     location: 'Koramangala, Bengaluru',
     rating: 4.8,
@@ -38,9 +38,9 @@ export const DEMO_PROFILES: UserProfile[] = [
   },
   {
     id: 'c3333333-3333-3333-3333-333333333333',
-    full_name: 'Rohan Verma',
-    email: 'rohan@narmis.in',
-    avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+    full_name: 'Shraddha',
+    email: 'shraddha@narmis.in',
+    avatar_url: 'https://ui-avatars.com/api/?name=Shraddha&background=80674D&color=F5E9D2&bold=true&size=150',
     bio: 'Robotics student, DIY hardware hacker & outdoor sports lover.',
     location: 'Whitefield, Bengaluru',
     rating: 5.0,
@@ -49,9 +49,9 @@ export const DEMO_PROFILES: UserProfile[] = [
   },
   {
     id: 'd4444444-4444-4444-4444-444444444444',
-    full_name: 'Ananya Iyer',
-    email: 'ananya@narmis.in',
-    avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
+    full_name: 'Shabadh',
+    email: 'shabadh@narmis.in',
+    avatar_url: 'https://ui-avatars.com/api/?name=Shabadh&background=304943&color=EAD3AA&bold=true&size=150',
     bio: 'Designer and gamer, trading accessories and electronics.',
     location: 'HSR Layout, Bengaluru',
     rating: 4.95,
@@ -305,7 +305,7 @@ export const INITIAL_MESSAGES: Record<string, Message[]> = {
       conversation_id: 'conv-1',
       sender_id: CURRENT_USER.id,
       sender: CURRENT_USER,
-      content: 'Hey Aarav! Loved your Keychron Q1 Pro listing. Are you interested in an MX Master 3S in pristine graphite?',
+      content: 'Hey Sanchit! Loved your Keychron Q1 Pro listing. Are you interested in an MX Master 3S in pristine graphite?',
       message_type: 'text',
       is_read: true,
       created_at: '2026-11-19T13:45:00Z',
@@ -315,7 +315,7 @@ export const INITIAL_MESSAGES: Record<string, Message[]> = {
       conversation_id: 'conv-1',
       sender_id: 'a1111111-1111-1111-1111-111111111111',
       sender: DEMO_PROFILES[1],
-      content: 'Hi Kabir! Yes definitely interested! The keyboard has lubed switches. How old is the mouse, and would you be open to adding ₹1,500 cash adjustment?',
+      content: 'Hi Vipan! Yes definitely interested! The keyboard has lubed switches. How old is the mouse, and would you be open to adding ₹1,500 cash adjustment?',
       message_type: 'text',
       is_read: true,
       created_at: '2026-11-19T13:58:00Z',
@@ -343,7 +343,7 @@ export const INITIAL_MESSAGES: Record<string, Message[]> = {
       conversation_id: 'conv-2',
       sender_id: CURRENT_USER.id,
       sender: CURRENT_USER,
-      content: 'Hi Priya, looking to rent your Sony A7 IV for a 2-day student documentary shoot this Saturday and Sunday.',
+      content: 'Hi Harshit, looking to rent your Sony A7 IV for a 2-day student documentary shoot this Saturday and Sunday.',
       message_type: 'text',
       is_read: true,
       created_at: '2026-11-19T10:30:00Z',
@@ -353,7 +353,7 @@ export const INITIAL_MESSAGES: Record<string, Message[]> = {
       conversation_id: 'conv-2',
       sender_id: 'b2222222-2222-2222-2222-222222222222',
       sender: DEMO_PROFILES[2],
-      content: 'Hey Kabir, sounds great! It is available this weekend. I can include both original batteries and the charger.',
+      content: 'Hey Vipan, sounds great! It is available this weekend. I can include both original batteries and the charger.',
       message_type: 'text',
       is_read: true,
       created_at: '2026-11-19T10:45:00Z',
@@ -447,5 +447,38 @@ export const INITIAL_REVIEWS: Review[] = [
     rating: 5,
     comment: 'Great buyer! Prompt communication and instantaneous demo payment confirmation.',
     created_at: '2026-11-17T17:00:00Z',
+  },
+];
+
+export const INITIAL_COMMUNITY_REQUESTS: CommunityRequest[] = [
+  {
+    id: 'req-1',
+    user_id: 'a1111111-1111-1111-1111-111111111111',
+    user: DEMO_PROFILES[1], // Sanchit
+    item_name: 'Raspberry Pi 4 Model B (4GB or 8GB)',
+    category: 'Computers and Accessories',
+    listing_type: 'rent',
+    details: 'Need for 1 week to test an IoT sensor array before deployment. Clean returns guaranteed.',
+    created_at: '2026-11-18T14:20:00Z',
+  },
+  {
+    id: 'req-2',
+    user_id: 'b2222222-2222-2222-2222-222222222222',
+    user: DEMO_PROFILES[2], // Harshit
+    item_name: 'GoPro Hero 11 or 12 Black with Chest Mount',
+    category: 'Photography',
+    listing_type: 'rent',
+    details: 'Looking for a weekend rental for a Coorg cycling expedition. Can pay upfront security deposit.',
+    created_at: '2026-11-19T09:15:00Z',
+  },
+  {
+    id: 'req-3',
+    user_id: 'c3333333-3333-3333-3333-333333333333',
+    user: DEMO_PROFILES[3], // Shraddha
+    item_name: 'Dune Deluxe Edition Hardcover by Frank Herbert',
+    category: 'Books',
+    listing_type: 'trade',
+    details: 'Happy to trade any of my graphic novels or programming references!',
+    created_at: '2026-11-19T12:45:00Z',
   },
 ];

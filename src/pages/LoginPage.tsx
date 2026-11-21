@@ -8,7 +8,7 @@ export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { login, isSupabaseConnected } = useAuth();
 
-  const [email, setEmail] = useState('kabir.demo@narmis.in');
+  const [email, setEmail] = useState('vipan.demo@narmis.in');
   const [password, setPassword] = useState('Password123!');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -34,7 +34,7 @@ export const LoginPage: React.FC = () => {
 
   const handleQuickDemoLogin = async () => {
     setIsLoading(true);
-    await login('kabir.demo@narmis.in', 'Password123!');
+    await login('vipan.demo@narmis.in', 'Password123!');
     navigate('/dashboard');
   };
 
@@ -58,7 +58,7 @@ export const LoginPage: React.FC = () => {
               <Sparkles className="w-3.5 h-3.5" />
               <span>Hackathon Quick-Sign In</span>
             </span>
-            <p className="text-[11px] text-narmis-cream/70">One-click sign in as Kabir Das (Demo User)</p>
+            <p className="text-[11px] text-narmis-cream/70">One-click sign in as Vipan (Demo User)</p>
           </div>
           <button
             type="button"

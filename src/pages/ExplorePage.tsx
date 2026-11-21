@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useMarketplace } from '../context/MarketplaceContext';
+import { useAuth } from '../context/AuthContext';
 import { ProductCard } from '../components/marketplace/ProductCard';
 import { EmptyStateIllustration } from '../components/illustrations/CartoonCharacters';
 import { ListingCategory, ListingCondition, ListingType } from '../types';
@@ -13,6 +14,12 @@ import {
   ShoppingBag,
   Sparkles,
   ArrowUpDown,
+  Megaphone,
+  Send,
+  CheckCircle2,
+  Users,
+  PlusCircle,
+  HelpCircle,
 } from 'lucide-react';
 
 const CATEGORIES: ListingCategory[] = [
@@ -48,7 +55,9 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({
   subtitleOverride,
 }) => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { listings } = useMarketplace();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { listings, communityRequests, addCommunityRequest } = useMarketplace();
 
   // Search & Filters state
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
@@ -62,6 +71,41 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({
   const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc' | 'popular'>('newest');
   const [maxPrice, setMaxPrice] = useState<number>(50000);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+
+  // Community Request Notice & Form state
+  const [requestItemName, setRequestItemName] = useState(searchTerm || '');
+  const [requestCategory, setRequestCategory] = useState<ListingCategory>('Electronics');
+  const [requestType, setRequestType] = useState<ListingType>('rent');
+  const [requestDetails, setRequestDetails] = useState('');
+  const [requestSuccess, setRequestSuccess] = useState(false);
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+
+  useEffect(() => {
+    if (searchTerm) {
+      setRequestItemName(searchTerm);
+    }
+  }, [searchTerm]);
+
+  const handlePostRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!requestItemName.trim()) return;
+
+    setIsSubmittingRequest(true);
+    try {
+      await addCommunityRequest({
+        item_name: requestItemName.trim(),
+        category: requestCategory,
+        listing_type: requestType,
+        details: requestDetails.trim() || undefined,
+      });
+      setRequestSuccess(true);
+      setTimeout(() => {
+        setRequestDetails('');
+      }, 300);
+    } finally {
+      setIsSubmittingRequest(false);
+    }
+  };
 
   // Sync state if initialType changes (e.g. navigation between /rent, /trade, /purchase)
   React.useEffect(() => {
@@ -388,27 +432,294 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({
             </div>
 
             {filteredListings.length === 0 ? (
-              <div className="bg-narmis-surface rounded-3xl p-12 text-center border border-narmis-mountain/40 flex flex-col items-center justify-center space-y-4">
-                <EmptyStateIllustration className="w-48 h-48" />
-                <h3 className="font-serif text-2xl font-bold text-narmis-parchment">
-                  No listings found
-                </h3>
-                <p className="text-xs sm:text-sm text-narmis-cream/70 max-w-sm">
-                  We could not find any items matching your current filters. Try resetting filters or
-                  searching with different keywords!
-                </p>
-                <button
-                  onClick={clearAllFilters}
-                  className="px-6 py-2.5 rounded-full bg-narmis-gold text-narmis-charcoal text-xs font-bold uppercase tracking-wider hover:bg-narmis-accent transition-all"
-                >
-                  Reset All Filters
-                </button>
+              <div className="space-y-8 animate-fadeIn">
+                {/* Zero State Hero Box */}
+                <div className="bg-narmis-surface rounded-3xl p-8 sm:p-10 border border-narmis-mountain/60 text-center shadow-xl flex flex-col items-center justify-center">
+                  <EmptyStateIllustration className="w-36 h-36 mb-2" />
+                  <h3 className="font-serif text-2xl font-bold text-narmis-parchment">
+                    {searchTerm ? `No listings found for "${searchTerm}"` : 'No listings found'}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-narmis-cream/70 max-w-md mt-1 mb-4">
+                    {searchTerm
+                      ? `We couldn't find "${searchTerm}" in the current catalog, but someone in the community might have it sitting on their shelf!`
+                      : 'We could not find any items matching your selected criteria.'}
+                  </p>
+
+                  <div className="flex flex-wrap items-center justify-center gap-3">
+                    <button
+                      onClick={clearAllFilters}
+                      className="px-5 py-2.5 rounded-full bg-narmis-forestDark hover:bg-narmis-mountain text-narmis-parchment text-xs font-semibold uppercase tracking-wider transition-all border border-narmis-mountain/80"
+                    >
+                      Reset Filters
+                    </button>
+                  </div>
+                </div>
+
+                {/* Community Request Notice & Interactive Form */}
+                <div className="bg-gradient-to-br from-narmis-surface to-narmis-forestDark rounded-3xl p-6 sm:p-8 border-2 border-narmis-gold/60 shadow-2xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-narmis-gold/5 rounded-full blur-3xl pointer-events-none" />
+
+                  <div className="flex items-start sm:items-center gap-3 mb-4">
+                    <div className="p-2.5 rounded-2xl bg-narmis-gold/20 text-narmis-gold border border-narmis-gold/40 shrink-0">
+                      <Megaphone className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-narmis-gold block">
+                        Community Wishlist Notice
+                      </span>
+                      <h4 className="font-serif text-lg sm:text-xl font-bold text-narmis-parchment">
+                        Ask the Community for This Item!
+                      </h4>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-narmis-cream/80 mb-6 leading-relaxed max-w-xl">
+                    Can't find what you need? Post a community request below. Members in your area will be
+                    notified and can list their item for you to rent, trade, or purchase.
+                  </p>
+
+                  {requestSuccess ? (
+                    <div className="p-6 rounded-2xl bg-emerald-950/60 border border-emerald-500/50 text-center space-y-3 animate-fadeIn">
+                      <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
+                      <h5 className="font-serif text-lg font-bold text-emerald-200">
+                        Community Request Published!
+                      </h5>
+                      <p className="text-xs text-emerald-100/80 max-w-md mx-auto">
+                        Your request for <strong>"{requestItemName}"</strong> is now live on the NARMIS
+                        Community Board. Other members can see it and offer their gear.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRequestSuccess(false);
+                          setRequestItemName('');
+                        }}
+                        className="mt-2 px-5 py-2 rounded-full bg-emerald-500 hover:bg-emerald-400 text-narmis-charcoal text-xs font-bold uppercase tracking-wider"
+                      >
+                        Ask For Another Item
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={handlePostRequest} className="space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="sm:col-span-2">
+                          <label className="block text-xs font-semibold uppercase tracking-wider text-narmis-parchment/90 mb-1.5">
+                            Item You Are Looking For *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={requestItemName}
+                            onChange={(e) => setRequestItemName(e.target.value)}
+                            placeholder="e.g. Sony A7 III camera, Keychron keyboard, Raspberry Pi 4..."
+                            className="w-full px-4 py-2.5 rounded-xl bg-narmis-forestDark border border-narmis-mountain/70 text-xs sm:text-sm text-narmis-cream placeholder-narmis-cream/40 focus:outline-none focus:border-narmis-gold"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold uppercase tracking-wider text-narmis-parchment/90 mb-1.5">
+                            Desired Model
+                          </label>
+                          <select
+                            value={requestType}
+                            onChange={(e) => setRequestType(e.target.value as ListingType)}
+                            className="w-full px-3 py-2.5 rounded-xl bg-narmis-forestDark border border-narmis-mountain/70 text-xs sm:text-sm text-narmis-cream focus:outline-none focus:border-narmis-gold cursor-pointer"
+                          >
+                            <option value="rent">Rent (Temporary)</option>
+                            <option value="trade">Trade (Exchange)</option>
+                            <option value="purchase">Purchase (Buy)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold uppercase tracking-wider text-narmis-parchment/90 mb-1.5">
+                            Category
+                          </label>
+                          <select
+                            value={requestCategory}
+                            onChange={(e) => setRequestCategory(e.target.value as ListingCategory)}
+                            className="w-full px-3 py-2.5 rounded-xl bg-narmis-forestDark border border-narmis-mountain/70 text-xs sm:text-sm text-narmis-cream focus:outline-none focus:border-narmis-gold cursor-pointer"
+                          >
+                            {CATEGORIES.map((cat) => (
+                              <option key={cat} value={cat}>
+                                {cat}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="sm:col-span-2">
+                          <label className="block text-xs font-semibold uppercase tracking-wider text-narmis-parchment/90 mb-1.5">
+                            Details & Budget / Duration Notes
+                          </label>
+                          <input
+                            type="text"
+                            value={requestDetails}
+                            onChange={(e) => setRequestDetails(e.target.value)}
+                            placeholder="e.g. Needed for 2 days this weekend in Koramangala. Budget ~₹1,000"
+                            className="w-full px-4 py-2.5 rounded-xl bg-narmis-forestDark border border-narmis-mountain/70 text-xs sm:text-sm text-narmis-cream placeholder-narmis-cream/40 focus:outline-none focus:border-narmis-gold"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="pt-2 flex items-center justify-between">
+                        <span className="text-[11px] text-narmis-cream/60 flex items-center gap-1">
+                          <Users className="w-3.5 h-3.5 text-narmis-gold" />
+                          <span>Visible to all Bengaluru community members</span>
+                        </span>
+
+                        <button
+                          type="submit"
+                          disabled={isSubmittingRequest || !requestItemName.trim()}
+                          className="px-6 py-2.5 rounded-full bg-narmis-gold hover:bg-narmis-accent text-narmis-charcoal text-xs font-bold uppercase tracking-wider shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>{isSubmittingRequest ? 'Posting...' : 'Post Community Request'}</span>
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredListings.map((listing) => (
-                  <ProductCard key={listing.id} listing={listing} />
-                ))}
+              <div className="space-y-12">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredListings.map((listing) => (
+                    <ProductCard key={listing.id} listing={listing} />
+                  ))}
+                </div>
+
+                {/* Always-accessible Quick Community Request Banner */}
+                <div className="bg-narmis-surface/80 rounded-2xl p-5 border border-narmis-mountain/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-narmis-gold/20 text-narmis-gold">
+                      <Megaphone className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-bold text-narmis-parchment">
+                        Looking for something not listed above?
+                      </h4>
+                      <p className="text-[11px] text-narmis-cream/60">
+                        Ask fellow members — someone might have it and be willing to rent or trade.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const askPrompt = prompt('What item are you looking for from the community?');
+                      if (askPrompt && askPrompt.trim()) {
+                        addCommunityRequest({
+                          item_name: askPrompt.trim(),
+                          category: 'Other',
+                          listing_type: 'rent',
+                          details: 'Broadcast from explore page wishlist request',
+                        });
+                        alert(`Your request for "${askPrompt}" has been posted to the community!`);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-full bg-narmis-mountain hover:bg-narmis-mountain/80 text-narmis-parchment text-xs font-bold uppercase tracking-wider shrink-0 border border-narmis-gold/30"
+                  >
+                    Ask the Community
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Community Requests / Wishlist Board */}
+            {communityRequests.length > 0 && (
+              <div className="mt-16 pt-10 border-t border-narmis-mountain/50 space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-narmis-surface text-narmis-gold border border-narmis-gold/30">
+                      <Users className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-serif text-xl sm:text-2xl font-bold text-narmis-parchment">
+                        Community Wishlist & Requests
+                      </h3>
+                      <p className="text-xs text-narmis-cream/60">
+                        Items members are searching for. If you have any of these, fulfill a request and earn!
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-3 py-1 rounded-full bg-narmis-surface text-narmis-gold border border-narmis-gold/30 text-xs font-bold">
+                    {communityRequests.length} Active
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {communityRequests.map((req) => (
+                    <div
+                      key={req.id}
+                      className="bg-narmis-surface rounded-2xl p-4 border border-narmis-mountain/60 hover:border-narmis-gold/50 transition-all flex flex-col justify-between shadow-md"
+                    >
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={req.user?.avatar_url || 'https://ui-avatars.com/api/?name=User&background=304943&color=EAD3AA'}
+                              alt={req.user?.full_name || 'Member'}
+                              className="w-7 h-7 rounded-full object-cover ring-1 ring-narmis-gold/50"
+                            />
+                            <span className="text-xs font-bold text-narmis-parchment">
+                              {req.user?.full_name || 'Community Member'}
+                            </span>
+                          </div>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              req.listing_type === 'rent'
+                                ? 'bg-sky-950 text-sky-300 border border-sky-500/40'
+                                : req.listing_type === 'trade'
+                                ? 'bg-amber-950 text-amber-300 border border-amber-500/40'
+                                : 'bg-emerald-950 text-emerald-300 border border-emerald-500/40'
+                            }`}
+                          >
+                            {req.listing_type || 'rent'}
+                          </span>
+                        </div>
+
+                        <h4 className="font-serif font-bold text-narmis-parchment text-sm">
+                          {req.item_name}
+                        </h4>
+
+                        {req.category && (
+                          <span className="inline-block text-[10px] px-2 py-0.5 rounded-md bg-narmis-forestDark text-narmis-cream/70 border border-narmis-mountain/50">
+                            {req.category}
+                          </span>
+                        )}
+
+                        {req.details && (
+                          <p className="text-xs text-narmis-cream/75 line-clamp-2 leading-relaxed">
+                            "{req.details}"
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-narmis-mountain/40 flex items-center justify-between">
+                        <span className="text-[10px] text-narmis-cream/50">
+                          {new Date(req.created_at).toLocaleDateString('en-IN', {
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </span>
+
+                        <button
+                          onClick={() => {
+                            navigate(
+                              `/create-listing?title=${encodeURIComponent(req.item_name)}&type=${req.listing_type || 'rent'}`
+                            );
+                          }}
+                          className="px-3 py-1 rounded-full bg-narmis-gold/20 hover:bg-narmis-gold hover:text-narmis-charcoal text-narmis-gold border border-narmis-gold/40 text-[11px] font-bold transition-all flex items-center gap-1"
+                        >
+                          <PlusCircle className="w-3 h-3" />
+                          <span>I Have This!</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </main>

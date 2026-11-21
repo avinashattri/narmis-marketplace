@@ -6,6 +6,7 @@ import {
   PurchaseTransaction,
   Conversation,
   Message,
+  CommunityRequest,
 } from '../types';
 import {
   INITIAL_LISTINGS,
@@ -14,6 +15,7 @@ import {
   INITIAL_TRADE_OFFERS,
   INITIAL_RENTAL_REQUESTS,
   INITIAL_PURCHASES,
+  INITIAL_COMMUNITY_REQUESTS,
   DEMO_PROFILES,
 } from '../services/mockData';
 import { useAuth } from './AuthContext';
@@ -29,6 +31,8 @@ interface MarketplaceContextType {
   messages: Record<string, Message[]>;
   activeConversationId: string | null;
   setActiveConversationId: (id: string | null) => void;
+  communityRequests: CommunityRequest[];
+  addCommunityRequest: (request: Omit<CommunityRequest, 'id' | 'created_at' | 'user' | 'user_id'>) => Promise<CommunityRequest>;
   
   // Actions
   addListing: (listing: Omit<Listing, 'id' | 'user_id' | 'created_at' | 'view_count' | 'status'>) => Promise<Listing>;
@@ -94,12 +98,21 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return cached ? JSON.parse(cached) : INITIAL_MESSAGES;
   });
 
+  const [communityRequests, setCommunityRequests] = useState<CommunityRequest[]>(() => {
+    const cached = localStorage.getItem('narmis_community_requests');
+    return cached ? JSON.parse(cached) : INITIAL_COMMUNITY_REQUESTS;
+  });
+
   const [activeConversationId, setActiveConversationId] = useState<string | null>('conv-1');
 
   // Persistence to local storage for realistic state maintenance
   useEffect(() => {
     localStorage.setItem('narmis_listings', JSON.stringify(listings));
   }, [listings]);
+
+  useEffect(() => {
+    localStorage.setItem('narmis_community_requests', JSON.stringify(communityRequests));
+  }, [communityRequests]);
 
   useEffect(() => {
     localStorage.setItem('narmis_saved_ids', JSON.stringify(savedIds));
@@ -464,6 +477,21 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return newConvId;
   };
 
+  const addCommunityRequest = async (
+    requestData: Omit<CommunityRequest, 'id' | 'created_at' | 'user' | 'user_id'>
+  ): Promise<CommunityRequest> => {
+    const newReq: CommunityRequest = {
+      ...requestData,
+      id: `req-${Date.now()}`,
+      user_id: user?.id || 'guest-user',
+      user: user || DEMO_PROFILES[0],
+      created_at: new Date().toISOString(),
+    };
+
+    setCommunityRequests((prev) => [newReq, ...prev]);
+    return newReq;
+  };
+
   return (
     <MarketplaceContext.Provider
       value={{
@@ -476,6 +504,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         messages,
         activeConversationId,
         setActiveConversationId,
+        communityRequests,
+        addCommunityRequest,
         addListing,
         updateListing,
         deleteListing,
