@@ -33,6 +33,7 @@ interface MarketplaceContextType {
   setActiveConversationId: (id: string | null) => void;
   communityRequests: CommunityRequest[];
   addCommunityRequest: (request: Omit<CommunityRequest, 'id' | 'created_at' | 'user' | 'user_id'>) => Promise<CommunityRequest>;
+  confirmDealInChat: (conversationId: string, dealType: 'rental' | 'trade', notes?: string) => void;
   
   // Actions
   addListing: (listing: Omit<Listing, 'id' | 'user_id' | 'created_at' | 'view_count' | 'status'>) => Promise<Listing>;
@@ -60,8 +61,23 @@ interface MarketplaceContextType {
 
 const MarketplaceContext = createContext<MarketplaceContextType | undefined>(undefined);
 
+const DATA_VERSION = 'v4';
+
 export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+
+  // If local storage has older version, reset to fresh initial mock data
+  const isFreshVersion = typeof window !== 'undefined' && localStorage.getItem('narmis_version') === DATA_VERSION;
+  if (typeof window !== 'undefined' && !isFreshVersion) {
+    localStorage.setItem('narmis_version', DATA_VERSION);
+    localStorage.removeItem('narmis_listings');
+    localStorage.removeItem('narmis_conversations');
+    localStorage.removeItem('narmis_messages');
+    localStorage.removeItem('narmis_rental_requests');
+    localStorage.removeItem('narmis_trade_offers');
+    localStorage.removeItem('narmis_purchases');
+    localStorage.removeItem('narmis_community_requests');
+  }
 
   const [listings, setListings] = useState<Listing[]>(() => {
     const cached = localStorage.getItem('narmis_listings');
@@ -492,6 +508,60 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return newReq;
   };
 
+  const confirmDealInChat = (conversationId: string, dealType: 'rental' | 'trade', notes?: string) => {
+    const confirmMsg: Message = {
+      id: 'msg-' + Date.now(),
+      conversation_id: conversationId,
+      sender_id: user?.id || 'demo-user',
+      sender: user || DEMO_PROFILES[0],
+      content:
+        dealType === 'rental'
+          ? `🎉 [RENTAL CONFIRMED & APPROVED] ${user?.full_name || 'Owner'} has officially approved this rental reservation! ${notes ? `Notes: ${notes}` : 'Arranging meetup & handover.'}`
+          : `🤝 [TRADE DEAL CONFIRMED] ${user?.full_name || 'Owner'} has accepted and finalized this trade exchange! ${notes ? `Notes: ${notes}` : 'Handover & cash offset confirmed.'}`,
+      message_type: 'system',
+      metadata: {
+        action: 'deal_confirmed',
+        dealType,
+        confirmedAt: new Date().toISOString(),
+        confirmedBy: user?.full_name,
+      },
+      is_read: true,
+      created_at: new Date().toISOString(),
+    };
+
+    setMessages((prev) => {
+      const convMsgs = prev[conversationId] || [];
+      const updatedMsgs = convMsgs.map((m) => {
+        if (m.metadata && (m.message_type === 'rental_offer' || m.message_type === 'trade_offer')) {
+          return {
+            ...m,
+            metadata: {
+              ...m.metadata,
+              status: 'approved',
+            },
+          };
+        }
+        return m;
+      });
+      return {
+        ...prev,
+        [conversationId]: [...updatedMsgs, confirmMsg],
+      };
+    });
+
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === conversationId
+          ? {
+              ...c,
+              last_message_text: `Deal confirmed by ${user?.full_name || 'seller'}`,
+              last_message_at: new Date().toISOString(),
+            }
+          : c
+      )
+    );
+  };
+
   return (
     <MarketplaceContext.Provider
       value={{
@@ -506,6 +576,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setActiveConversationId,
         communityRequests,
         addCommunityRequest,
+        confirmDealInChat,
         addListing,
         updateListing,
         deleteListing,

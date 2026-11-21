@@ -27,6 +27,7 @@ const CATEGORIES: ListingCategory[] = [
   'Gaming',
   'Sports Equipment',
   'Cricket Equipment',
+  'Fashion & Apparel',
   'Furniture',
   'Other',
 ];

@@ -14,6 +14,8 @@ import {
   Sparkles,
   Check,
   CheckCheck,
+  CheckCircle2,
+  Handshake,
 } from 'lucide-react';
 
 export const MessagesPage: React.FC = () => {
@@ -23,11 +25,14 @@ export const MessagesPage: React.FC = () => {
     activeConversationId,
     setActiveConversationId,
     sendMessage,
+    confirmDealInChat,
   } = useMarketplace();
   const { user, isSupabaseConnected } = useAuth();
 
   const [inputMessage, setInputMessage] = useState('');
   const [isMobileListVisible, setIsMobileListVisible] = useState(true);
+  const [dealNote, setDealNote] = useState('');
+  const [showConfirmModal, setShowConfirmModal] = useState<'rental' | 'trade' | null>(null);
 
   const activeConversation = conversations.find((c) => c.id === activeConversationId);
   const activeMessages = activeConversationId ? messages[activeConversationId] || [] : [];
@@ -221,6 +226,65 @@ export const MessagesPage: React.FC = () => {
                   )}
                 </div>
 
+                {/* Deal Action Header Bar: Rental & Trade Confirmation */}
+                {activeConversation.listing && (
+                  <div className="px-4 py-2.5 bg-narmis-mountain/30 border-b border-narmis-mountain/50 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2 text-narmis-parchment font-medium">
+                      <Sparkles className="w-3.5 h-3.5 text-narmis-gold" />
+                      <span>Negotiating: <strong className="text-narmis-gold uppercase">{activeConversation.listing.listing_type}</strong> terms</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {activeConversation.listing.listing_type === 'rent' ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            confirmDealInChat(
+                              activeConversation.id,
+                              'rental',
+                              `Agreed to rental for ${activeConversation.listing?.title}`
+                            );
+                          }}
+                          className="px-3.5 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-narmis-charcoal text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 shadow"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Seller: Confirm Rental</span>
+                        </button>
+                      ) : activeConversation.listing.listing_type === 'trade' ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            confirmDealInChat(
+                              activeConversation.id,
+                              'trade',
+                              `Accepted trade exchange for ${activeConversation.listing?.title}`
+                            );
+                          }}
+                          className="px-3.5 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 text-narmis-charcoal text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 shadow"
+                        >
+                          <Handshake className="w-3.5 h-3.5" />
+                          <span>Seller: Confirm Trade</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            confirmDealInChat(
+                              activeConversation.id,
+                              'rental',
+                              `Confirmed purchase and handover for ${activeConversation.listing?.title}`
+                            );
+                          }}
+                          className="px-3.5 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-narmis-charcoal text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 shadow"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Seller: Confirm Handover</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Messages Body */}
                 <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
                   {/* Safety Watermark */}
@@ -234,6 +298,22 @@ export const MessagesPage: React.FC = () => {
                   {activeMessages.map((msg) => {
                     const isMe = msg.sender_id === user?.id;
 
+                    if (msg.message_type === 'system') {
+                      return (
+                        <div
+                          key={msg.id}
+                          className="w-full my-3 p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/80 via-narmis-surface to-emerald-950/80 border border-emerald-500/50 shadow-lg text-center space-y-1 animate-fadeIn"
+                        >
+                          <div className="flex items-center justify-center gap-1.5 text-emerald-400 text-xs font-bold uppercase tracking-wider">
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Deal Formally Confirmed</span>
+                          </div>
+                          <p className="text-xs text-narmis-parchment font-medium">{msg.content}</p>
+                          <span className="text-[10px] text-narmis-cream/50 block">Verified on NARMIS P2P Ledger</span>
+                        </div>
+                      );
+                    }
+
                     return (
                       <div
                         key={msg.id}
@@ -241,14 +321,27 @@ export const MessagesPage: React.FC = () => {
                       >
                         {/* Interactive message card for trade / rental offers */}
                         {msg.message_type === 'trade_offer' && msg.metadata && (
-                          <div className="mb-1.5 max-w-sm rounded-2xl p-4 bg-amber-950/60 border border-amber-500/60 shadow-lg text-xs space-y-2">
-                            <div className="flex items-center gap-2 text-amber-300 font-bold uppercase tracking-wider">
-                              <Repeat className="w-4 h-4" />
-                              <span>Trade Offer Proposal</span>
+                          <div className="mb-1.5 max-w-sm rounded-2xl p-4 bg-amber-950/60 border border-amber-500/60 shadow-lg text-xs space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-amber-300 font-bold uppercase tracking-wider">
+                                <Repeat className="w-4 h-4" />
+                                <span>Trade Offer Proposal</span>
+                              </div>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                  msg.metadata.status === 'approved'
+                                    ? 'bg-emerald-500 text-narmis-charcoal'
+                                    : 'bg-amber-500/20 text-amber-300 border border-amber-400/40'
+                                }`}
+                              >
+                                {msg.metadata.status === 'approved' ? '✓ Approved & Confirmed' : 'Pending Review'}
+                              </span>
                             </div>
+
                             <p className="text-narmis-parchment font-semibold">
                               Item: {msg.metadata.offeredItem}
                             </p>
+
                             <div className="flex justify-between text-narmis-cream/80">
                               <span>Est. Value: ₹{msg.metadata.estimatedValue}</span>
                               <span className="text-amber-300 font-bold">
@@ -257,21 +350,67 @@ export const MessagesPage: React.FC = () => {
                                   : 'Even Trade'}
                               </span>
                             </div>
+
+                            {msg.metadata.status !== 'approved' && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  confirmDealInChat(
+                                    activeConversation.id,
+                                    'trade',
+                                    `Accepted trade offer for ${msg.metadata?.offeredItem}`
+                                  )
+                                }
+                                className="w-full py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-narmis-charcoal font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md mt-1"
+                              >
+                                <Handshake className="w-3.5 h-3.5" />
+                                <span>Seller Action: Confirm & Accept Trade</span>
+                              </button>
+                            )}
                           </div>
                         )}
 
                         {msg.message_type === 'rental_offer' && msg.metadata && (
-                          <div className="mb-1.5 max-w-sm rounded-2xl p-4 bg-sky-950/60 border border-sky-500/60 shadow-lg text-xs space-y-2">
-                            <div className="flex items-center gap-2 text-sky-300 font-bold uppercase tracking-wider">
-                              <Calendar className="w-4 h-4" />
-                              <span>Rental Reservation</span>
+                          <div className="mb-1.5 max-w-sm rounded-2xl p-4 bg-sky-950/60 border border-sky-500/60 shadow-lg text-xs space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-sky-300 font-bold uppercase tracking-wider">
+                                <Calendar className="w-4 h-4" />
+                                <span>Rental Reservation</span>
+                              </div>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                  msg.metadata.status === 'approved'
+                                    ? 'bg-emerald-500 text-narmis-charcoal'
+                                    : 'bg-sky-500/20 text-sky-300 border border-sky-400/40'
+                                }`}
+                              >
+                                {msg.metadata.status === 'approved' ? '✓ Approved & Confirmed' : 'Pending Approval'}
+                              </span>
                             </div>
-                            <p className="text-narmis-parchment font-semibold">
+
+                            <p className="text-narmis-parchment font-semibold text-sm">
                               Total: ₹{msg.metadata.totalAmount}
                             </p>
                             <p className="text-[11px] text-narmis-cream/70">
-                              Dates: {msg.metadata.startDate} → {msg.metadata.endDate}
+                              Dates: {msg.metadata.startDate} → {msg.metadata.endDate} ({msg.metadata.durationUnits || 2} {msg.metadata.durationType || 'Daily'})
                             </p>
+
+                            {msg.metadata.status !== 'approved' && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  confirmDealInChat(
+                                    activeConversation.id,
+                                    'rental',
+                                    `Confirmed booking for ₹${msg.metadata?.totalAmount}`
+                                  )
+                                }
+                                className="w-full py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-narmis-charcoal font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md mt-1"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Seller Action: Confirm & Approve Rental</span>
+                              </button>
+                            )}
                           </div>
                         )}
 
@@ -301,7 +440,7 @@ export const MessagesPage: React.FC = () => {
                 {/* Message Input Bar */}
                 <form
                   onSubmit={handleSendMessage}
-                  className="p-3 sm:p-4 border-t border-narmis-mountain/50 bg-narmis-surface flex items-center gap-3"
+                  className="p-3 sm:p-4 border-t border-narmis-mountain/50 bg-narmis-surface flex items-center gap-2 sm:gap-3"
                 >
                   <input
                     type="text"
@@ -310,12 +449,34 @@ export const MessagesPage: React.FC = () => {
                     onChange={(e) => setInputMessage(e.target.value)}
                     className="flex-1 px-4 py-3 rounded-2xl bg-narmis-forestDark border border-narmis-mountain/60 text-xs sm:text-sm text-narmis-cream placeholder-narmis-cream/40 focus:outline-none focus:border-narmis-gold transition-colors"
                   />
+
+                  {activeConversation.listing && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const note = prompt('Enter confirmation details (e.g. Meetup place or time):', 'Confirmed for Koramangala meetup');
+                        if (note) {
+                          confirmDealInChat(
+                            activeConversation.id,
+                            activeConversation.listing?.listing_type === 'trade' ? 'trade' : 'rental',
+                            note
+                          );
+                        }
+                      }}
+                      className="px-3 sm:px-4 py-3 rounded-2xl bg-emerald-500/20 hover:bg-emerald-500 hover:text-narmis-charcoal text-emerald-400 border border-emerald-500/40 text-xs font-bold transition-all shrink-0 flex items-center gap-1"
+                      title="Quick Confirm Deal"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span className="hidden sm:inline">Confirm Deal</span>
+                    </button>
+                  )}
+
                   <button
                     type="submit"
-                    className="p-3 rounded-2xl bg-narmis-gold hover:bg-narmis-accent text-narmis-charcoal font-bold transition-all shadow-md hover:scale-105 active:scale-95"
+                    className="p-3 rounded-2xl bg-narmis-gold hover:bg-narmis-accent text-narmis-charcoal font-bold transition-all shadow-md hover:scale-105 active:scale-95 shrink-0"
                     aria-label="Send message"
                   >
-                    <Send className="w-5 h-5" />
+                    <Send className="w-4 h-4" />
                   </button>
                 </form>
               </>

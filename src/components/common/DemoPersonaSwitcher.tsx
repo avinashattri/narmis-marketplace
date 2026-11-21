@@ -59,12 +59,20 @@ export const DemoPersonaSwitcher: React.FC = () => {
                         {profile.full_name}
                       </p>
                       <p className="text-[10px] text-narmis-cream/60 truncate">
-                        {profile.id === CURRENT_USER.id
-                          ? 'Primary Demo Buyer/Trader'
-                          : profile.id === 'a1111111-1111-1111-1111-111111111111'
-                          ? 'Owner of Keychron & MacBook'
-                          : profile.id === 'b2222222-2222-2222-2222-222222222222'
-                          ? 'Owner of Sony A7 IV & Cricket Bat'
+                        {profile.full_name === 'Vipan'
+                          ? 'Oscilloscope, Soldering & Electronics'
+                          : profile.full_name === 'Shraddha'
+                          ? 'Sony Cinema Camera, Studio Mic & Gown'
+                          : profile.full_name === 'Sanchit'
+                          ? 'PS5 GTA V, Volleyball & Keychron'
+                          : profile.full_name === 'Harshit'
+                          ? 'MacBook M2, Tech Stickers & Cricket Bat'
+                          : profile.full_name === 'Shabadh'
+                          ? 'Tolkien Hardcovers, Books & Manga'
+                          : profile.full_name === 'Naina'
+                          ? 'Dyson Styler, Makeup Vanity & Dresses'
+                          : profile.full_name === 'Javed Bhaiya'
+                          ? 'Custom FPV Drones & RC Controllers'
                           : 'Community Peer Member'}
                       </p>
                     </div>

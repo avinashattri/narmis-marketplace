@@ -11,6 +11,7 @@ export type ListingCategory =
   | 'Gaming'
   | 'Sports Equipment'
   | 'Cricket Equipment'
+  | 'Fashion & Apparel'
   | 'Furniture'
   | 'Other';
 

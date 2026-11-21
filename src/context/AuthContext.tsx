@@ -19,6 +19,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(() => {
+    const isFresh = localStorage.getItem('narmis_auth_version') === 'v4';
+    if (!isFresh) {
+      localStorage.setItem('narmis_auth_version', 'v4');
+      localStorage.removeItem('narmis_auth_user');
+      return CURRENT_USER;
+    }
     const saved = localStorage.getItem('narmis_auth_user');
     if (saved) {
       try {

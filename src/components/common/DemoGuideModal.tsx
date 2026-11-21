@@ -193,7 +193,7 @@ export const DemoGuideModal: React.FC<DemoGuideModalProps> = ({ isOpen, onClose 
                 Submit the request. An active rental card is automatically dispatched into the owner's chat thread.
               </li>
               <li>
-                Switch to <strong className="text-narmis-parchment">Harshit</strong> using the Demo Switcher to review and approve the booking in the Dashboard!
+                Switch to <strong className="text-narmis-parchment">Shraddha</strong> using the Demo Switcher to review and approve the booking in the Dashboard or chat!
               </li>
             </ol>
 
