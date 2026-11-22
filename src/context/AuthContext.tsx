@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { CollegeVerificationStatus, UserProfile } from '../types';
-import { supabase, isSupabaseConfigured } from '../services/supabase';
+import { supabase, isSupabaseConfigured, supabaseConfigError } from '../services/supabase';
 import { DEFAULT_CAMPUS_LOCATION, DEFAULT_COLLEGE_NAME } from '../services/locationDefaults';
 import { uploadImage, uploadPrivateCollegeId } from '../services/storage';
 
@@ -45,6 +45,7 @@ interface AuthContextType {
     submission: CollegeVerificationSubmission
   ) => Promise<{ success: boolean; error?: string }>;
   isSupabaseConnected: boolean;
+  supabaseConfigError: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -231,7 +232,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return {
         success: false,
         error:
-          'Supabase authentication is not configured. Please check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.',
+          supabaseConfigError ||
+          'Supabase authentication is not configured. Please check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file or Netlify environment variables.',
       };
     }
 
@@ -348,7 +350,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return {
         success: false,
         error:
-          'Supabase authentication is not configured. Please check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.',
+          supabaseConfigError ||
+          'Supabase authentication is not configured. Please check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file or Netlify environment variables.',
       };
     }
 
@@ -794,6 +797,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateProfile,
         submitCollegeVerification,
         isSupabaseConnected: isSupabaseConfigured,
+        supabaseConfigError,
       }}
     >
       {children}

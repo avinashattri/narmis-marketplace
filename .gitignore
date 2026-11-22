@@ -27,10 +27,23 @@ dist-ssr
 
 # Environment and secret files (Never commit credentials)
 .env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
 .env.*
 !.env.example
 server/.env
+server/.env.local
+server/.env.production
 server/.env.*
-!server/.env.example
 *.pem
 *.key
+
+# Paused backend & local-only SQL seed files
+/server/
+supabase/seed.sql
+supabase/CLOUD_SETUP_AND_SEED.sql

@@ -316,7 +316,10 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const mapped = dbListings.map(mapDbListing);
         setListings((prev) => {
           const dbIds = new Set(mapped.map((m) => m.id));
-          const preserved = prev.filter((item) => !dbIds.has(item.id));
+          const dbTitles = new Set(mapped.map((m) => m.title.trim().toLowerCase()));
+          const preserved = prev.filter(
+            (item) => !dbIds.has(item.id) && !dbTitles.has(item.title.trim().toLowerCase())
+          );
           return [...mapped, ...preserved];
         });
       }

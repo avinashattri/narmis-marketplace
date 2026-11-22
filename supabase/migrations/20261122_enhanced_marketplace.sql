@@ -1,4 +1,4 @@
-﻿-- ====================================================================
+-- ====================================================================
 -- NARMIS P2P MARKETPLACE - ENHANCED SCHEMA MIGRATION
 -- Adds structured product fields, condition options, location fields,
 -- terms acceptance tracking, and strengthened security policies.

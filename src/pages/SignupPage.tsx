@@ -31,7 +31,7 @@ import {
 
 export const SignupPage: React.FC = () => {
   const navigate = useNavigate();
-  const { signup, resendVerificationEmail } = useAuth();
+  const { signup, resendVerificationEmail, isSupabaseConnected, supabaseConfigError } = useAuth();
 
   // Multi-step wizard (1 = Account, 2 = College Info, 3 = Profile & Location)
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -259,13 +259,19 @@ export const SignupPage: React.FC = () => {
           </div>
         )}
 
+        {!isSupabaseConnected && supabaseConfigError && (
+          <div className="mb-4 p-3.5 rounded-xl bg-amber-950/70 border border-amber-500/60 text-amber-200 text-xs flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <span className="leading-relaxed">{supabaseConfigError}</span>
+          </div>
+        )}
+
         {errorMsg && (
           <div className="mb-4 p-3 rounded-xl bg-red-950/70 border border-red-500/60 text-red-200 text-xs flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
             <span>{errorMsg}</span>
           </div>
         )}
-
         {verificationNotice ? (
           <div className="p-6 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-center space-y-4">
             <div className="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center mx-auto">

@@ -18,7 +18,8 @@ import {
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, resetPassword, resendVerificationEmail } = useAuth();
+  const { login, resetPassword, resendVerificationEmail, isSupabaseConnected, supabaseConfigError } =
+    useAuth();
 
   // Redirect destination after successful login
   const from = (location.state as any)?.from?.pathname || '/dashboard';
@@ -107,6 +108,12 @@ export const LoginPage: React.FC = () => {
           </p>
         </div>
 
+        {!isSupabaseConnected && supabaseConfigError && (
+          <div className="mb-4 p-3.5 rounded-xl bg-amber-950/70 border border-amber-500/60 text-amber-200 text-xs flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <span className="leading-relaxed">{supabaseConfigError}</span>
+          </div>
+        )}
         {errorMsg && (
           <div className="mb-4 p-3.5 rounded-xl bg-red-950/70 border border-red-500/60 text-red-200 text-xs space-y-2.5">
             <div className="flex items-start gap-2">
