@@ -5,7 +5,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ProductCard } from '../components/marketplace/ProductCard';
 import { ConditionBadge } from '../components/marketplace/ConditionBadge';
 import { ProductImage } from '../components/marketplace/ProductImage';
-import { LocalListingsBanner } from '../components/common/LocalListingsBanner';
 import {
   DEFAULT_CAMPUS_LOCATION,
   DEFAULT_COLLEGE_NAME,
@@ -537,8 +536,6 @@ export const DashboardPage: React.FC = () => {
                 + New Listing
               </Link>
             </div>
-
-            <LocalListingsBanner />
 
             {myListings.length === 0 ? (
               <div className="bg-narmis-surface rounded-3xl p-12 text-center border border-narmis-mountain/40">

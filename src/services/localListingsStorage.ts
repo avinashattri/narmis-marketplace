@@ -119,10 +119,10 @@ const writeLocalListings = (items: Listing[]): void => {
       /quota/i.test(String(err?.message || ''))
     ) {
       throw new Error(
-        'Browser local storage is full. Please remove old unused local listings or upload smaller/fewer images.'
+        'Unable to save listing images right now. Please try uploading smaller or fewer images.'
       );
     }
-    throw new Error(`Unable to save listing to localStorage: ${err?.message || 'Unknown error'}`);
+    throw new Error('Unable to save listing right now. Please try again.');
   }
 };
 

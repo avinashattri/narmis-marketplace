@@ -11,7 +11,6 @@ import { PurchaseModal } from '../components/marketplace/PurchaseModal';
 import { ShareModal } from '../components/marketplace/ShareModal';
 import { useToast } from '../context/ToastContext';
 import { CONDITION_DESCRIPTIONS } from '../services/conditionOptions';
-import { isLocalListingId } from '../services/localListingsStorage';
 import {
   Heart,
   Share2,
@@ -38,7 +37,6 @@ import {
   Info,
   Edit3,
   Trash2,
-  HardDrive,
   Camera,
   X,
   FileText,
@@ -61,7 +59,6 @@ export const ProductDetailPage: React.FC = () => {
     hasUserCompletedTransaction,
     addToCart,
     deleteListing,
-    isLocalListingMode,
     tradeAccess,
   } = useMarketplace();
   const { user, isAuthenticated } = useAuth();
@@ -234,15 +231,6 @@ export const ProductDetailPage: React.FC = () => {
           </Link>
 
           <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-            {isLocalListingMode && isLocalListingId(listing.id) && (
-              <span
-                title="Saved in this browser's localStorage (not synchronised across devices)"
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-narmis-surface border border-narmis-gold/35 text-[11px] font-semibold text-narmis-gold"
-              >
-                <HardDrive className="w-3 h-3" />
-                <span>Stored Locally</span>
-              </span>
-            )}
             {isOwner && (
               <>
                 <Link

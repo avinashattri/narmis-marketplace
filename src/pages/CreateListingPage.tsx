@@ -38,7 +38,6 @@ import {
 } from '../services/conditionOptions';
 import { uploadImages } from '../services/storage';
 import { prepareImagesForLocalStorage } from '../services/localListingsStorage';
-import { LocalListingsBanner } from '../components/common/LocalListingsBanner';
 import { DefectType } from '../types';
 import {
   DEFAULT_CAMPUS_LOCATION,
@@ -584,8 +583,6 @@ export const CreateListingPage: React.FC = () => {
             Give your equipment, electronics, fashion, or gear more than one life.
           </p>
         </div>
-
-        <LocalListingsBanner className="mb-6" />
 
         {/* Wizard Stepper Bar (4 Clean Steps) */}
         <div className="bg-narmis-surface rounded-2xl p-4 border border-narmis-mountain/60 shadow-lg mb-8">
