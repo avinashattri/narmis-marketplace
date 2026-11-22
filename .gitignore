@@ -12,6 +12,7 @@ server/node_modules
 dist
 server/dist
 dist-ssr
+.netlify
 *.local
 
 # Editor directories and files
