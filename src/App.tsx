@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { MotionConfig } from 'framer-motion';
 import { AuthProvider } from './context/AuthContext';
 import { MarketplaceProvider } from './context/MarketplaceContext';
 import { ToastProvider } from './context/ToastContext';
@@ -34,43 +35,45 @@ function ScrollToTop() {
 
 export function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <MarketplaceProvider>
-          <ToastProvider>
-            <div className="flex flex-col min-h-screen bg-narmis-bg text-narmis-cream font-sans selection:bg-narmis-gold selection:text-narmis-charcoal">
-              <ScrollToTop />
-              <Navbar />
-              
-              <main className="flex-1">
-                <Routes>
-                  <Route path="/" element={<HomePage />} />
-                  <Route path="/explore" element={<ExplorePage />} />
-                  <Route path="/rent" element={<RentPage />} />
-                  <Route path="/trade" element={<TradePage />} />
-                  <Route path="/purchase" element={<PurchasePage />} />
-                  <Route path="/product/:id" element={<ProductDetailPage />} />
-                  <Route path="/create-listing" element={<CreateListingPage />} />
-                  <Route path="/messages" element={<MessagesPage />} />
-                  <Route path="/dashboard" element={<DashboardPage />} />
-                  <Route path="/profile/:id" element={<ProfilePage />} />
-                  <Route path="/login" element={<LoginPage />} />
-                  <Route path="/signup" element={<SignupPage />} />
-                  <Route path="/about" element={<AboutPage />} />
-                  <Route path="/terms" element={<TermsPage />} />
-                  <Route path="/cart" element={<CartPage />} />
-                  <Route path="/subscription" element={<SubscriptionPage />} />
-                  {/* Fallback */}
-                  <Route path="*" element={<ExplorePage />} />
-                </Routes>
-              </main>
+    <MotionConfig reducedMotion="user">
+      <BrowserRouter>
+        <AuthProvider>
+          <MarketplaceProvider>
+            <ToastProvider>
+              <div className="flex flex-col min-h-screen bg-narmis-bg text-narmis-cream font-sans selection:bg-narmis-gold selection:text-narmis-charcoal">
+                <ScrollToTop />
+                <Navbar />
 
-              <Footer />
-            </div>
-          </ToastProvider>
-        </MarketplaceProvider>
-      </AuthProvider>
-    </BrowserRouter>
+                <main className="flex-1">
+                  <Routes>
+                    <Route path="/" element={<HomePage />} />
+                    <Route path="/explore" element={<ExplorePage />} />
+                    <Route path="/rent" element={<RentPage />} />
+                    <Route path="/trade" element={<TradePage />} />
+                    <Route path="/purchase" element={<PurchasePage />} />
+                    <Route path="/product/:id" element={<ProductDetailPage />} />
+                    <Route path="/create-listing" element={<CreateListingPage />} />
+                    <Route path="/messages" element={<MessagesPage />} />
+                    <Route path="/dashboard" element={<DashboardPage />} />
+                    <Route path="/profile/:id" element={<ProfilePage />} />
+                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/signup" element={<SignupPage />} />
+                    <Route path="/about" element={<AboutPage />} />
+                    <Route path="/terms" element={<TermsPage />} />
+                    <Route path="/cart" element={<CartPage />} />
+                    <Route path="/subscription" element={<SubscriptionPage />} />
+                    {/* Fallback */}
+                    <Route path="*" element={<ExplorePage />} />
+                  </Routes>
+                </main>
+
+                <Footer />
+              </div>
+            </ToastProvider>
+          </MarketplaceProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </MotionConfig>
   );
 }
 

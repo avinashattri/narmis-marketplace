@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Listing } from '../../types';
 import { useMarketplace } from '../../context/MarketplaceContext';
 import { useAuth } from '../../context/AuthContext';
@@ -84,10 +85,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({ listing }) => {
 
   return (
     <>
-      <div
+      <motion.div
         onClick={handleCardClick}
-        className="group relative bg-narmis-surface rounded-2xl border border-narmis-mountain/50 hover:border-narmis-gold/60 transition-all duration-300 shadow-md hover:shadow-2xl hover:-translate-y-1.5 flex flex-col overflow-hidden cursor-pointer"
+        whileHover={{ y: -6 }}
+        transition={{ type: 'spring', stiffness: 320, damping: 24 }}
+        className="group relative bg-narmis-surface rounded-2xl border border-narmis-mountain/55 hover:border-narmis-gold/65 transition-colors duration-300 shadow-md hover:shadow-[0_18px_40px_rgba(13,26,24,0.65)] flex flex-col overflow-hidden cursor-pointer will-change-transform"
       >
+        {/* Subtle top antique-gold shimmer rim on hover */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-narmis-gold to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-30"
+        />
+
         {/* Image Thumbnail with Overlay Badges */}
         <div className="relative aspect-[4/3] w-full overflow-hidden bg-narmis-forestDark flex items-center justify-center">
           <ProductImage
@@ -95,16 +104,16 @@ export const ProductCard: React.FC<ProductCardProps> = ({ listing }) => {
             alt={listing.title}
             category={listing.category}
             title={listing.title}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
             loading="lazy"
           />
 
-          <div className="absolute inset-0 bg-gradient-to-t from-narmis-charcoal/80 via-transparent to-black/30 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-narmis-charcoal/85 via-transparent to-black/30 pointer-events-none" />
 
           {/* Listing Type Badge */}
           <div className="absolute top-3 left-3 z-10">
             <span
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-wider uppercase backdrop-blur-md border shadow-sm ${badge.bg}`}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-wider uppercase backdrop-blur-md border shadow-sm transition-transform duration-300 group-hover:scale-105 ${badge.bg}`}
             >
               {badge.icon}
               {badge.label}
@@ -115,21 +124,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({ listing }) => {
           <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1.5">
             <ConditionBadge condition={listing.condition} size="sm" />
 
-            <button
+            <motion.button
               type="button"
+              whileTap={{ scale: 0.88 }}
               onClick={(e) => {
                 e.stopPropagation();
                 setIsShareOpen(true);
               }}
-              className="p-2 rounded-full backdrop-blur-md bg-black/45 text-narmis-cream hover:bg-black/75 hover:text-narmis-gold transition-all"
+              className="p-2 rounded-full backdrop-blur-md bg-black/45 text-narmis-cream hover:bg-black/75 hover:text-narmis-gold transition-colors"
               aria-label="Share listing"
               title="Share listing"
             >
               <Share2 className="w-4 h-4" />
-            </button>
+            </motion.button>
 
-            <button
+            <motion.button
               type="button"
+              whileTap={{ scale: 0.85 }}
               onClick={(e) => {
                 e.stopPropagation();
                 toggleSaveListing(listing.id);
@@ -144,11 +155,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ listing }) => {
               title={saved ? 'Remove from saved' : 'Save listing'}
             >
               <Heart className={`w-4 h-4 ${saved ? 'fill-current' : ''}`} />
-            </button>
+            </motion.button>
           </div>
 
           {/* Location chip bottom-left of image */}
-          <div className="absolute bottom-2.5 left-3 flex items-center gap-1 text-[11px] text-narmis-cream/80 backdrop-blur-sm bg-black/40 px-2 py-0.5 rounded-md">
+          <div className="absolute bottom-2.5 left-3 flex items-center gap-1 text-[11px] text-narmis-cream/85 backdrop-blur-sm bg-black/45 px-2.5 py-0.5 rounded-md border border-white/5">
             <MapPin className="w-3 h-3 text-narmis-gold" />
             <span className="truncate max-w-[150px]">{listing.location.split(',')[0]}</span>
           </div>
@@ -210,31 +221,34 @@ export const ProductCard: React.FC<ProductCardProps> = ({ listing }) => {
               )}
             </div>
 
-            {/* Action Pills */}
+            {/* Responsive Action Pills */}
             <div className="flex items-center gap-1.5">
               {listing.listing_type === 'purchase' && !isOwner && listing.status === 'active' && (
-                <button
+                <motion.button
                   type="button"
+                  whileTap={{ scale: 0.9 }}
                   onClick={handleAddToCart}
-                  className="p-2 rounded-lg text-xs font-semibold bg-emerald-950/80 hover:bg-emerald-500 text-emerald-200 hover:text-narmis-charcoal transition-all border border-emerald-500/40"
+                  className="p-2 rounded-lg text-xs font-semibold bg-emerald-950/80 hover:bg-emerald-500 text-emerald-200 hover:text-narmis-charcoal transition-colors border border-emerald-500/40"
                   title="Add to Purchase Cart"
                   aria-label="Add to Purchase Cart"
                 >
                   <ShoppingCart className="w-3.5 h-3.5" />
-                </button>
+                </motion.button>
               )}
 
-              <Link
-                to={`/product/${listing.id}`}
-                onClick={(e) => e.stopPropagation()}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-narmis-mountain/70 hover:bg-narmis-gold hover:text-narmis-charcoal text-narmis-parchment transition-all border border-narmis-mountain"
-              >
-                {listing.listing_type === 'rent'
-                  ? 'Rent'
-                  : listing.listing_type === 'trade'
-                  ? 'Trade'
-                  : 'Purchase'}
-              </Link>
+              <motion.div whileTap={{ scale: 0.94 }}>
+                <Link
+                  to={`/product/${listing.id}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-block px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-narmis-mountain/75 hover:bg-narmis-gold hover:text-narmis-charcoal text-narmis-parchment transition-colors border border-narmis-mountain hover:border-narmis-gold"
+                >
+                  {listing.listing_type === 'rent'
+                    ? 'Rent'
+                    : listing.listing_type === 'trade'
+                    ? 'Trade'
+                    : 'Purchase'}
+                </Link>
+              </motion.div>
             </div>
           </div>
 
@@ -258,7 +272,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ listing }) => {
             </div>
           )}
         </div>
-      </div>
+      </motion.div>
 
       <ShareModal
         listing={listing}

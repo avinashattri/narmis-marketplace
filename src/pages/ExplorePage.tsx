@@ -4,7 +4,6 @@ import { useMarketplace } from '../context/MarketplaceContext';
 import { useAuth } from '../context/AuthContext';
 import { ProductCard } from '../components/marketplace/ProductCard';
 import { EmptyStateIllustration } from '../components/illustrations/CartoonCharacters';
-import { isLocalListingId } from '../services/localListingsStorage';
 import { ListingCategory, ListingCondition, ListingType } from '../types';
 import {
   Search,
@@ -21,6 +20,9 @@ import {
   Users,
   PlusCircle,
   HelpCircle,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 
 const CATEGORIES: ListingCategory[] = [
@@ -60,7 +62,14 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { listings, communityRequests, addCommunityRequest } = useMarketplace();
+  const {
+    listings,
+    isLoadingListings,
+    listingsError,
+    refreshListings,
+    communityRequests,
+    addCommunityRequest,
+  } = useMarketplace();
 
   // Search & Filters state
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
@@ -155,9 +164,6 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({
       })
       .sort((a, b) => {
         if (sortBy === 'newest') {
-          const aLocal = isLocalListingId(a.id) ? 1 : 0;
-          const bLocal = isLocalListingId(b.id) ? 1 : 0;
-          if (aLocal !== bLocal) return bLocal - aLocal;
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         }
         if (sortBy === 'popular') {
@@ -437,7 +443,29 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({
               )}
             </div>
 
-            {filteredListings.length === 0 ? (
+            {listingsError && (
+              <div className="mb-6 p-4 rounded-2xl bg-red-950/70 border border-red-500/50 text-red-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                  <span>{listingsError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => refreshListings()}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-narmis-gold text-narmis-charcoal font-bold uppercase tracking-wider text-[11px] shrink-0 self-start sm:self-center"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Retry</span>
+                </button>
+              </div>
+            )}
+
+            {isLoadingListings && filteredListings.length === 0 ? (
+              <div className="bg-narmis-surface rounded-3xl p-12 border border-narmis-mountain/60 text-center space-y-3">
+                <Loader2 className="w-8 h-8 text-narmis-gold animate-spin mx-auto" />
+                <p className="text-sm text-narmis-cream/75">Loading marketplace listings...</p>
+              </div>
+            ) : filteredListings.length === 0 ? (
               <div className="space-y-8 animate-fadeIn">
                 {/* Zero State Hero Box */}
                 <div className="bg-narmis-surface rounded-3xl p-8 sm:p-10 border border-narmis-mountain/60 text-center shadow-xl flex flex-col items-center justify-center">

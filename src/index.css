@@ -45,6 +45,55 @@
   }
 }
 
+@keyframes narmisMistDrift {
+  0%,
+  100% {
+    transform: translate3d(-1.5%, 0, 0);
+  }
+  50% {
+    transform: translate3d(1.5%, 0, 0);
+  }
+}
+
+@keyframes narmisParticleFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.25;
+  }
+  50% {
+    transform: translate3d(6px, -18px, 0);
+    opacity: 0.72;
+  }
+}
+
 .animate-fadeIn {
   animation: fadeIn 0.25s ease-out forwards;
+}
+
+.narmis-mist-slow {
+  animation: narmisMistDrift 26s ease-in-out infinite;
+  will-change: transform;
+}
+
+.narmis-mist-drift {
+  animation: narmisMistDrift 19s ease-in-out infinite reverse;
+  will-change: transform;
+}
+
+.narmis-particle-float {
+  animation: narmisParticleFloat 10s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .narmis-mist-slow,
+  .narmis-mist-drift,
+  .narmis-particle-float {
+    animation: none !important;
+  }
 }

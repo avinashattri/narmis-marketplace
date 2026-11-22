@@ -37,7 +37,6 @@ import {
   validateImageFile,
 } from '../services/conditionOptions';
 import { uploadImages } from '../services/storage';
-import { prepareImagesForLocalStorage } from '../services/localListingsStorage';
 import { DefectType } from '../types';
 import {
   DEFAULT_CAMPUS_LOCATION,
@@ -143,14 +142,32 @@ const WARRANTY_OPTIONS = [
 export const CreateListingPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { addListing, updateListing, getListing, isLocalListingMode } = useMarketplace();
-  const { user, isAuthenticated } = useAuth();
+  const { addListing, updateListing, getListing, fetchListingById } = useMarketplace();
+  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
 
   // Edit mode: /create-listing?edit=<listingId>
   const editId = searchParams.get('edit');
   const editingListing = editId ? getListing(editId) : undefined;
-  const isEditMode = Boolean(editingListing);
+  const isEditMode = Boolean(editId);
   const [hydrated, setHydrated] = useState(false);
+  const [isLoadingEditTarget, setIsLoadingEditTarget] = useState<boolean>(
+    Boolean(editId && !editingListing)
+  );
+
+  useEffect(() => {
+    if (!editId || editingListing) {
+      setIsLoadingEditTarget(false);
+      return;
+    }
+    let active = true;
+    setIsLoadingEditTarget(true);
+    fetchListingById(editId).finally(() => {
+      if (active) setIsLoadingEditTarget(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [editId, editingListing, fetchListingById]);
 
   // Wizard Step: 1 = Basic & Description, 2 = Condition, Accessories & Specs, 3 = Pricing Model, 4 = Images & Publish
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -500,19 +517,15 @@ export const CreateListingPage: React.FC = () => {
     setErrorMsg('');
 
     try {
-      const uploadedProductImages = isLocalListingMode
-        ? await prepareImagesForLocalStorage(images)
-        : user
-        ? await uploadImages(images, user.id, 'product')
-        : images;
+      if (!user) {
+        throw new Error('Please sign in to upload images and publish a listing.');
+      }
+
+      const uploadedProductImages = await uploadImages(images, user.id, 'product');
       const uploadedConditionImages =
         conditionImages.length > 0
-          ? isLocalListingMode
-            ? await prepareImagesForLocalStorage(conditionImages)
-            : user
-            ? await uploadImages(conditionImages, user.id, 'condition')
-            : conditionImages
-          : conditionImages;
+          ? await uploadImages(conditionImages, user.id, 'condition')
+          : [];
 
       const payload = {
         title: title.trim(),
@@ -566,6 +579,17 @@ export const CreateListingPage: React.FC = () => {
       setIsSubmitting(false);
     }
   };
+
+  if (isAuthLoading || isLoadingEditTarget) {
+    return (
+      <div className="pt-32 pb-24 bg-narmis-bg min-h-screen flex flex-col items-center justify-center gap-3 text-narmis-cream">
+        <Loader2 className="w-8 h-8 text-narmis-gold animate-spin" />
+        <p className="text-sm text-narmis-cream/70">
+          {isLoadingEditTarget ? 'Loading listing from Supabase...' : 'Checking your session...'}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="pt-28 pb-24 bg-narmis-bg min-h-screen text-narmis-cream">

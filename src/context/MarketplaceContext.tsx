@@ -13,7 +13,6 @@ import {
   SubscriptionPayment,
 } from '../types';
 import {
-  INITIAL_LISTINGS,
   INITIAL_CONVERSATIONS,
   INITIAL_MESSAGES,
   INITIAL_TRADE_OFFERS,
@@ -26,15 +25,7 @@ import {
 import { useAuth } from './AuthContext';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { DEFAULT_CAMPUS_LOCATION, DEFAULT_COLLEGE_NAME } from '../services/locationDefaults';
-import {
-  USE_LOCAL_LISTING_STORAGE,
-  LOCAL_LISTINGS_STORAGE_KEY,
-  LOCAL_DELETED_IDS_STORAGE_KEY,
-  createLocalListingId,
-  loadMergedLocalListings,
-  saveLocalListing,
-  removeLocalListing,
-} from '../services/localListingsStorage';
+import { deleteStorageImagesByUrls } from '../services/storage';
 
 const isUuid = (id: unknown): id is string =>
   typeof id === 'string' &&
@@ -53,7 +44,7 @@ const DEFAULT_TRADE_ACCESS: TradeAccessStatus = {
 interface MarketplaceContextType {
   listings: Listing[];
   isLoadingListings: boolean;
-  isLocalListingMode: boolean;
+  listingsError: string | null;
   refreshListings: () => Promise<void>;
   fetchListingById: (id: string) => Promise<Listing | null>;
   savedIds: string[];
@@ -159,18 +150,19 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const isFreshVersion = localStorage.getItem('narmis_version') === DATA_VERSION;
-      if (!isFreshVersion) {
+      // Remove any legacy local-only listing caches; Supabase is the single source of truth
+      localStorage.removeItem('narmis_listings');
+      localStorage.removeItem('narmis_local_listings_v1');
+      localStorage.removeItem('narmis_local_deleted_listing_ids_v1');
+      if (localStorage.getItem('narmis_version') !== DATA_VERSION) {
         localStorage.setItem('narmis_version', DATA_VERSION);
-        // Never wipe local listing data — preserve locally created listings across versions
       }
     }
   }, []);
 
-  const [listings, setListings] = useState<Listing[]>(() =>
-    USE_LOCAL_LISTING_STORAGE ? loadMergedLocalListings(INITIAL_LISTINGS) : INITIAL_LISTINGS
-  );
-  const [isLoadingListings, setIsLoadingListings] = useState<boolean>(false);
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [isLoadingListings, setIsLoadingListings] = useState<boolean>(true);
+  const [listingsError, setListingsError] = useState<string | null>(null);
 
   const [savedIds, setSavedIds] = useState<string[]>(() => {
     try {
@@ -293,34 +285,33 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // Ensure the signed-in user has a row in public.profiles so FK references never fail
   const ensureCurrentUserProfileRow = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase || !user || !session?.access_token) return;
-    try {
-      await supabase.from('profiles').upsert(
-        [
-          {
-            id: user.id,
-            full_name: user.full_name || 'Marketplace Member',
-            avatar_url: user.avatar_url,
-            bio: user.bio || 'Member of NARMIS circular community.',
-            location: user.location || DEFAULT_CAMPUS_LOCATION,
-            college_name: user.college_name || DEFAULT_COLLEGE_NAME,
-          },
-        ],
-        { onConflict: 'id', ignoreDuplicates: true }
-      );
-    } catch {
-      // ignore if trigger already created profile
+    const { error } = await supabase.from('profiles').upsert(
+      [
+        {
+          id: user.id,
+          full_name: user.full_name || 'Marketplace Member',
+          avatar_url: user.avatar_url,
+          bio: user.bio || 'Member of NARMIS circular community.',
+          location: user.location || DEFAULT_CAMPUS_LOCATION,
+          college_name: user.college_name || DEFAULT_COLLEGE_NAME,
+        },
+      ],
+      { onConflict: 'id', ignoreDuplicates: true }
+    );
+    if (error && error.code !== '23505') {
+      throw new Error(`Unable to verify user profile in Supabase: ${error.message}`);
     }
   }, [user, session?.access_token]);
 
-  // Fetch listings (from browser localStorage in temporary local mode, or from Supabase when restored)
+  // Fetch authoritative listings exclusively from Supabase
   const refreshListings = useCallback(async () => {
-    if (USE_LOCAL_LISTING_STORAGE) {
-      setListings(loadMergedLocalListings(INITIAL_LISTINGS));
+    if (!isSupabaseConfigured || !supabase) {
+      setListings([]);
+      setListingsError('Supabase is not configured. Listings cannot be loaded.');
       setIsLoadingListings(false);
       return;
     }
 
-    if (!isSupabaseConfigured || !supabase) return;
     const client = supabase;
     setIsLoadingListings(true);
 
@@ -330,19 +321,22 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         .select('*, profiles(*), listing_images(*)')
         .order('created_at', { ascending: false });
 
-      if (!listErr && Array.isArray(dbListings)) {
-        const mapped = dbListings.map(mapDbListing);
-        const dbIds = new Set(mapped.map((m) => m.id));
-        // Keep predefined non-UUID showcase catalog items while making Supabase 100% authoritative for all UUID listings
-        const staticShowcase = INITIAL_LISTINGS.filter(
-          (item) => !isUuid(item.id) && !dbIds.has(item.id)
-        );
-        setListings([...mapped, ...staticShowcase]);
-      } else if (listErr) {
-        console.warn('[NARMIS] Supabase listings fetch error:', listErr.code, listErr.message);
+      if (listErr) {
+        const msg =
+          listErr.code === '42501'
+            ? 'Database permission error (42501): Run migration 20261123_01_api_grants_and_listing_sync.sql in Supabase SQL Editor.'
+            : `Failed to load listings from Supabase: ${listErr.message}`;
+        setListingsError(msg);
+        console.error('[NARMIS] Supabase listings fetch error:', listErr.code, listErr.message);
+        return;
       }
-    } catch (err) {
-      console.warn('[NARMIS] Supabase listings sync error:', err);
+
+      const mapped = Array.isArray(dbListings) ? dbListings.map(mapDbListing) : [];
+      setListings(mapped);
+      setListingsError(null);
+    } catch (err: any) {
+      setListingsError(err?.message || 'Failed to connect to Supabase to load listings.');
+      console.error('[NARMIS] Supabase listings sync error:', err);
     } finally {
       setIsLoadingListings(false);
     }
@@ -350,19 +344,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const fetchListingById = useCallback(
     async (id: string): Promise<Listing | null> => {
-      const localMatch = listings.find((l) => l.id === id);
-      if (USE_LOCAL_LISTING_STORAGE) {
-        if (localMatch) return localMatch;
-        const merged = loadMergedLocalListings(INITIAL_LISTINGS);
-        const found = merged.find((l) => l.id === id) || null;
-        if (found) {
-          setListings(merged);
-        }
-        return found;
-      }
-
       if (!isSupabaseConfigured || !supabase || !isUuid(id)) {
-        return localMatch || null;
+        return null;
       }
 
       try {
@@ -372,7 +355,12 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
           .eq('id', id)
           .maybeSingle();
 
-        if (!error && data) {
+        if (error) {
+          console.error('[NARMIS] fetchListingById error:', error.code, error.message);
+          return null;
+        }
+
+        if (data) {
           const mapped = mapDbListing(data);
           setListings((prev) => {
             const exists = prev.some((item) => item.id === mapped.id);
@@ -382,12 +370,16 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
           });
           return mapped;
         }
+
+        // Listing no longer exists in Supabase — remove stale entry if present
+        setListings((prev) => prev.filter((item) => item.id !== id));
+        return null;
       } catch (err) {
-        console.warn('[NARMIS] fetchListingById error:', err);
+        console.error('[NARMIS] fetchListingById error:', err);
+        return null;
       }
-      return localMatch || null;
     },
-    [listings, mapDbListing]
+    [mapDbListing]
   );
 
   // Refresh server-side Trade Trial & Subscription status from Supabase
@@ -672,7 +664,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   useEffect(() => {
     refreshListings();
-  }, [refreshListings]);
+  }, [refreshListings, user?.id]);
 
   useEffect(() => {
     fetchUserScopedData();
@@ -698,25 +690,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
   }, [refreshListings, fetchCartFromSupabase, refreshTradeAccess, user?.id]);
 
-  // Sync locally stored listings across tabs in the same browser when in local mode
+  // Realtime subscription for cross-device listing changes (INSERT, UPDATE, DELETE)
   useEffect(() => {
-    if (!USE_LOCAL_LISTING_STORAGE || typeof window === 'undefined') return;
-    const handleStorage = (e: StorageEvent) => {
-      if (
-        e.key === LOCAL_LISTINGS_STORAGE_KEY ||
-        e.key === LOCAL_DELETED_IDS_STORAGE_KEY ||
-        e.key === null
-      ) {
-        setListings(loadMergedLocalListings(INITIAL_LISTINGS));
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, []);
-
-  // Realtime subscription for cross-device listing changes (skipped while temporary local listing mode is active)
-  useEffect(() => {
-    if (USE_LOCAL_LISTING_STORAGE) return;
     if (!isSupabaseConfigured || !supabase) return;
     const client = supabase;
 
@@ -898,40 +873,41 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const toListingRow = (data: Partial<Listing>) => {
+    const normalize = (val: any) => (val === undefined || val === '' ? null : val);
     const row: Record<string, any> = {
       title: data.title,
       description: data.description,
       category: data.category,
       condition: data.condition,
       listing_type: data.listing_type,
-      brand: data.brand,
-      model_name: data.model_name,
-      product_age: data.product_age,
-      purchase_date: data.purchase_date,
-      original_mrp: data.original_mrp,
-      accessories_included: data.accessories_included,
-      warranty_status: data.warranty_status,
-      invoice_available: data.invoice_available,
-      defects: data.defects,
-      defect_other: data.defect_other,
-      defect_description: data.defect_description,
-      included_items: data.included_items,
-      included_custom: data.included_custom,
-      missing_accessories: data.missing_accessories,
-      packaging_available: data.packaging_available,
-      warranty_valid: data.warranty_valid,
-      documentation_notes: data.documentation_notes,
+      brand: normalize(data.brand),
+      model_name: normalize(data.model_name),
+      product_age: normalize(data.product_age),
+      purchase_date: normalize(data.purchase_date),
+      original_mrp: data.original_mrp ?? null,
+      accessories_included: normalize(data.accessories_included),
+      warranty_status: normalize(data.warranty_status),
+      invoice_available: data.invoice_available ?? null,
+      defects: data.defects && data.defects.length > 0 ? data.defects : null,
+      defect_other: normalize(data.defect_other),
+      defect_description: normalize(data.defect_description),
+      included_items: data.included_items && data.included_items.length > 0 ? data.included_items : null,
+      included_custom: normalize(data.included_custom),
+      missing_accessories: normalize(data.missing_accessories),
+      packaging_available: data.packaging_available ?? null,
+      warranty_valid: data.warranty_valid ?? null,
+      documentation_notes: normalize(data.documentation_notes),
       terms_accepted: data.terms_accepted,
       terms_accepted_at: data.terms_accepted_at,
       terms_version: data.terms_version,
-      rental_price: data.rental_price,
-      rental_duration: data.rental_duration,
+      rental_price: data.rental_price ?? null,
+      rental_duration: normalize(data.rental_duration),
       availability_status: data.availability_status,
-      estimated_value: data.estimated_value,
-      trade_desired: data.trade_desired,
-      trade_cash_adjustment: data.trade_cash_adjustment,
-      purchase_price: data.purchase_price,
-      location: data.location,
+      estimated_value: data.estimated_value ?? null,
+      trade_desired: normalize(data.trade_desired),
+      trade_cash_adjustment: data.trade_cash_adjustment ?? 0,
+      purchase_price: data.purchase_price ?? null,
+      location: normalize(data.location),
       status: data.status,
       featured: data.featured,
     };
@@ -945,15 +921,20 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     listingId: string,
     product?: string[],
     condition?: string[]
-  ) => {
-    if (!isSupabaseConfigured || !supabase) return;
+  ): Promise<void> => {
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Supabase is not configured.');
+    }
     const rows: any[] = [];
-    if (product) {
-      await supabase
+    if (product !== undefined) {
+      const { error: delProdErr } = await supabase
         .from('listing_images')
         .delete()
         .eq('listing_id', listingId)
         .eq('image_type', 'product');
+      if (delProdErr) {
+        throw new Error(`Failed to update listing images: ${delProdErr.message}`);
+      }
       product.forEach((url, idx) =>
         rows.push({
           listing_id: listingId,
@@ -963,12 +944,15 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         })
       );
     }
-    if (condition) {
-      await supabase
+    if (condition !== undefined) {
+      const { error: delCondErr } = await supabase
         .from('listing_images')
         .delete()
         .eq('listing_id', listingId)
         .eq('image_type', 'condition');
+      if (delCondErr) {
+        throw new Error(`Failed to update condition images: ${delCondErr.message}`);
+      }
       condition.forEach((url) =>
         rows.push({
           listing_id: listingId,
@@ -978,10 +962,10 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         })
       );
     }
-    if (rows.length) {
-      const { error } = await supabase.from('listing_images').insert(rows);
-      if (error) {
-        console.warn('[NARMIS] listing_images insert error:', error.message);
+    if (rows.length > 0) {
+      const { error: insErr } = await supabase.from('listing_images').insert(rows);
+      if (insErr) {
+        throw new Error(`Failed to save listing images to Supabase: ${insErr.message}`);
       }
     }
   };
@@ -992,69 +976,63 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (!user || !session?.access_token) {
       throw new Error('Please log in with a valid account to create a listing.');
     }
-
-    const nowIso = new Date().toISOString();
-
-    if (USE_LOCAL_LISTING_STORAGE) {
-      const newListing: Listing = {
-        ...data,
-        id: createLocalListingId(),
-        user_id: user.id,
-        user,
-        status: 'active',
-        view_count: 0,
-        created_at: nowIso,
-        updated_at: nowIso,
-      };
-      saveLocalListing(newListing);
-      setListings(loadMergedLocalListings(INITIAL_LISTINGS));
-      return newListing;
-    }
-
     if (!isSupabaseConfigured || !supabase) {
-      throw new Error('Supabase is not configured.');
+      throw new Error('Supabase is not configured. Listings cannot be saved.');
     }
 
     await ensureCurrentUserProfileRow();
 
     const newId = crypto.randomUUID();
-
-    const { error } = await supabase
+    const { data: insertedRow, error } = await supabase
       .from('listings')
-      .insert([{ id: newId, user_id: user.id, ...toListingRow({ ...data, status: 'active' }) }]);
+      .insert([{ id: newId, user_id: user.id, ...toListingRow({ ...data, status: 'active' }) }])
+      .select('*, profiles(*), listing_images(*)')
+      .single();
 
-    if (error) {
-      if (error.code === '42501') {
+    if (error || !insertedRow) {
+      if (error?.code === '42501') {
         throw new Error(
-          'Database permission error (42501): Please run the SQL migration 20261123_01_api_grants_and_listing_sync.sql in your Supabase SQL Editor to grant API role permissions on public.listings.'
+          'Database permission error (42501): Please run migration 20261123_01_api_grants_and_listing_sync.sql in Supabase SQL Editor.'
         );
       }
-      throw new Error(`Failed to save listing to Supabase: ${error.message}`);
+      throw new Error(`Failed to save listing to Supabase: ${error?.message || 'Insert returned no row.'}`);
     }
 
-    await replaceListingImages(newId, data.images || [], data.condition_images || []);
+    try {
+      await replaceListingImages(newId, data.images || [], data.condition_images || []);
+    } catch (imgErr: any) {
+      // Roll back the listing row so we never leave a broken image-less listing on failure
+      await supabase.from('listings').delete().eq('id', newId).eq('user_id', user.id);
+      throw new Error(imgErr?.message || 'Failed to save listing images to Supabase.');
+    }
 
-    const newListing: Listing = {
-      ...data,
-      id: newId,
-      user_id: user.id,
-      user,
-      status: 'active',
-      view_count: 0,
-      created_at: nowIso,
-    };
-
-    setListings((prev) => [newListing, ...prev]);
-    // Refresh from Supabase so server-hydrated fields & images are immediately verified
+    const hydrated = await fetchListingById(newId);
     await refreshListings();
-    return newListing;
+    if (hydrated) return hydrated;
+
+    return {
+      ...mapDbListing(insertedRow),
+      images: data.images || [],
+      condition_images: data.condition_images || [],
+      user,
+    };
   };
 
   const updateListing = async (id: string, updates: Partial<Listing>): Promise<void> => {
-    const existing = listings.find((l) => l.id === id);
+    if (!user || !session?.access_token) {
+      throw new Error('Please log in to update a listing.');
+    }
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Supabase is not configured.');
+    }
+    if (!isUuid(id)) {
+      throw new Error('Invalid listing identifier.');
+    }
+
+    const existing = listings.find((l) => l.id === id) || (await fetchListingById(id));
     if (!existing) throw new Error('Listing not found.');
 
-    const isOwner = user && existing.user_id === user.id;
+    const isOwner = existing.user_id === user.id;
     const isStatusUpdateOnly =
       Object.keys(updates).length === 1 &&
       (updates.status === 'pending' || updates.status === 'completed');
@@ -1065,64 +1043,62 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     const { id: _i, user_id: _u, user: _usr, created_at: _c, ...safeUpdates } = updates as any;
 
-    if (USE_LOCAL_LISTING_STORAGE) {
-      const updatedListing: Listing = {
-        ...existing,
-        ...safeUpdates,
-        updated_at: new Date().toISOString(),
-      };
-      saveLocalListing(updatedListing);
-      setListings(loadMergedLocalListings(INITIAL_LISTINGS));
-      return;
-    }
-
-    if (isSupabaseConfigured && supabase && isOwner && isUuid(id)) {
-      const row = toListingRow(safeUpdates);
-      if (Object.keys(row).length) {
-        const { error } = await supabase
-          .from('listings')
-          .update(row)
-          .eq('id', id)
-          .eq('user_id', user.id);
-        if (error) {
-          throw new Error(`Failed to update listing in Supabase: ${error.message}`);
-        }
+    const row = toListingRow(safeUpdates);
+    if (Object.keys(row).length > 0) {
+      const query = supabase.from('listings').update(row).eq('id', id);
+      const scoped = isOwner ? query.eq('user_id', user.id) : query;
+      const { data: updatedRow, error } = await scoped.select('id').maybeSingle();
+      if (error) {
+        throw new Error(`Failed to update listing in Supabase: ${error.message}`);
       }
-      if (safeUpdates.images || safeUpdates.condition_images) {
-        await replaceListingImages(id, safeUpdates.images, safeUpdates.condition_images);
+      if (!updatedRow) {
+        throw new Error('Listing update was rejected or listing no longer exists.');
       }
     }
 
-    setListings((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, ...safeUpdates } : item))
-    );
+    if (isOwner && (safeUpdates.images !== undefined || safeUpdates.condition_images !== undefined)) {
+      await replaceListingImages(id, safeUpdates.images, safeUpdates.condition_images);
+    }
+
+    await refreshListings();
   };
 
   const deleteListing = async (id: string): Promise<void> => {
-    const existing = listings.find((l) => l.id === id);
-    if (!existing || !user || existing.user_id !== user.id) {
+    if (!user || !session?.access_token) {
+      throw new Error('Please log in to delete a listing.');
+    }
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Supabase is not configured.');
+    }
+    if (!isUuid(id)) {
+      throw new Error('Invalid listing identifier.');
+    }
+
+    const existing = listings.find((l) => l.id === id) || (await fetchListingById(id));
+    if (!existing || existing.user_id !== user.id) {
       throw new Error('You can only delete your own listings.');
     }
 
-    if (USE_LOCAL_LISTING_STORAGE) {
-      const isStarter = INITIAL_LISTINGS.some((item) => item.id === id);
-      removeLocalListing(id, isStarter);
-      setListings(loadMergedLocalListings(INITIAL_LISTINGS));
-      return;
+    const { data: deletedRow, error } = await supabase
+      .from('listings')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .select('id')
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to delete listing from Supabase: ${error.message}`);
+    }
+    if (!deletedRow) {
+      throw new Error('Listing deletion was rejected or listing was already removed.');
     }
 
-    if (isSupabaseConfigured && supabase && isUuid(id)) {
-      const { error } = await supabase
-        .from('listings')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', user.id);
-      if (error) {
-        throw new Error(`Failed to delete listing from Supabase: ${error.message}`);
-      }
-    }
+    const urlsToClean = [...(existing.images || []), ...(existing.condition_images || [])];
+    await deleteStorageImagesByUrls(urlsToClean, user.id, 'listings');
 
     setListings((prev) => prev.filter((item) => item.id !== id));
+    await refreshListings();
   };
 
   const toggleSaveListing = async (id: string): Promise<void> => {
@@ -2235,7 +2211,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       value={{
         listings,
         isLoadingListings,
-        isLocalListingMode: USE_LOCAL_LISTING_STORAGE,
+        listingsError,
         refreshListings,
         fetchListingById,
         savedIds,

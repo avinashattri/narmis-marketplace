@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useMarketplace } from '../context/MarketplaceContext';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { ProductCard } from '../components/marketplace/ProductCard';
 import { ConditionBadge } from '../components/marketplace/ConditionBadge';
@@ -38,7 +39,8 @@ import {
 } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
-  const { user, updateProfile, submitCollegeVerification } = useAuth();
+  const { user, isLoading: isAuthLoading, updateProfile, submitCollegeVerification } = useAuth();
+  const { showToast } = useToast();
   const {
     listings,
     deleteListing,
@@ -165,6 +167,15 @@ export const DashboardPage: React.FC = () => {
       { timeout: 10000 }
     );
   };
+
+  if (isAuthLoading) {
+    return (
+      <div className="pt-32 pb-24 max-w-md mx-auto px-4 text-center space-y-3">
+        <Loader2 className="w-8 h-8 text-narmis-gold animate-spin mx-auto" />
+        <p className="text-sm text-narmis-cream/70">Restoring your NARMIS session...</p>
+      </div>
+    );
+  }
 
   if (!user) {
     return (
@@ -606,11 +617,20 @@ export const DashboardPage: React.FC = () => {
                       </Link>
 
                       <button
-                        onClick={() =>
-                          updateListing(item.id, {
-                            status: item.status === 'active' ? 'inactive' : 'active',
-                          })
-                        }
+                        onClick={async () => {
+                          try {
+                            const nextStatus = item.status === 'active' ? 'inactive' : 'active';
+                            await updateListing(item.id, { status: nextStatus });
+                            showToast(
+                              nextStatus === 'active'
+                                ? `"${item.title}" is now active.`
+                                : `"${item.title}" has been deactivated.`,
+                              'success'
+                            );
+                          } catch (err: any) {
+                            showToast(err?.message || 'Failed to update listing status.', 'error');
+                          }
+                        }}
                         className={`px-3 py-1.5 rounded-xl text-xs font-semibold ${
                           item.status === 'active'
                             ? 'bg-amber-950/60 text-amber-300 border border-amber-600/40'
@@ -621,7 +641,15 @@ export const DashboardPage: React.FC = () => {
                       </button>
 
                       <button
-                        onClick={() => deleteListing(item.id)}
+                        onClick={async () => {
+                          if (!window.confirm(`Delete "${item.title}" permanently?`)) return;
+                          try {
+                            await deleteListing(item.id);
+                            showToast(`"${item.title}" deleted from Supabase.`, 'success');
+                          } catch (err: any) {
+                            showToast(err?.message || 'Failed to delete listing.', 'error');
+                          }
+                        }}
                         className="p-2 rounded-xl bg-red-950/40 hover:bg-red-900/60 text-red-300 transition-colors"
                         title="Delete Listing"
                       >
