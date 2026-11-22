@@ -26,6 +26,15 @@ import {
 import { useAuth } from './AuthContext';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { DEFAULT_CAMPUS_LOCATION, DEFAULT_COLLEGE_NAME } from '../services/locationDefaults';
+import {
+  USE_LOCAL_LISTING_STORAGE,
+  LOCAL_LISTINGS_STORAGE_KEY,
+  LOCAL_DELETED_IDS_STORAGE_KEY,
+  createLocalListingId,
+  loadMergedLocalListings,
+  saveLocalListing,
+  removeLocalListing,
+} from '../services/localListingsStorage';
 
 const isUuid = (id: unknown): id is string =>
   typeof id === 'string' &&
@@ -44,6 +53,7 @@ const DEFAULT_TRADE_ACCESS: TradeAccessStatus = {
 interface MarketplaceContextType {
   listings: Listing[];
   isLoadingListings: boolean;
+  isLocalListingMode: boolean;
   refreshListings: () => Promise<void>;
   fetchListingById: (id: string) => Promise<Listing | null>;
   savedIds: string[];
@@ -152,13 +162,14 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const isFreshVersion = localStorage.getItem('narmis_version') === DATA_VERSION;
       if (!isFreshVersion) {
         localStorage.setItem('narmis_version', DATA_VERSION);
-        // Remove stale localStorage listing caches so Supabase is always authoritative for user listings
-        localStorage.removeItem('narmis_listings');
+        // Never wipe local listing data — preserve locally created listings across versions
       }
     }
   }, []);
 
-  const [listings, setListings] = useState<Listing[]>(INITIAL_LISTINGS);
+  const [listings, setListings] = useState<Listing[]>(() =>
+    USE_LOCAL_LISTING_STORAGE ? loadMergedLocalListings(INITIAL_LISTINGS) : INITIAL_LISTINGS
+  );
   const [isLoadingListings, setIsLoadingListings] = useState<boolean>(false);
 
   const [savedIds, setSavedIds] = useState<string[]>(() => {
@@ -301,8 +312,14 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   }, [user, session?.access_token]);
 
-  // Fetch authoritative listings from Supabase (never deduplicating by title, and removing deleted DB rows)
+  // Fetch listings (from browser localStorage in temporary local mode, or from Supabase when restored)
   const refreshListings = useCallback(async () => {
+    if (USE_LOCAL_LISTING_STORAGE) {
+      setListings(loadMergedLocalListings(INITIAL_LISTINGS));
+      setIsLoadingListings(false);
+      return;
+    }
+
     if (!isSupabaseConfigured || !supabase) return;
     const client = supabase;
     setIsLoadingListings(true);
@@ -334,6 +351,16 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const fetchListingById = useCallback(
     async (id: string): Promise<Listing | null> => {
       const localMatch = listings.find((l) => l.id === id);
+      if (USE_LOCAL_LISTING_STORAGE) {
+        if (localMatch) return localMatch;
+        const merged = loadMergedLocalListings(INITIAL_LISTINGS);
+        const found = merged.find((l) => l.id === id) || null;
+        if (found) {
+          setListings(merged);
+        }
+        return found;
+      }
+
       if (!isSupabaseConfigured || !supabase || !isUuid(id)) {
         return localMatch || null;
       }
@@ -671,8 +698,25 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
   }, [refreshListings, fetchCartFromSupabase, refreshTradeAccess, user?.id]);
 
-  // Realtime subscription for cross-device listing changes (INSERT, UPDATE, DELETE)
+  // Sync locally stored listings across tabs in the same browser when in local mode
   useEffect(() => {
+    if (!USE_LOCAL_LISTING_STORAGE || typeof window === 'undefined') return;
+    const handleStorage = (e: StorageEvent) => {
+      if (
+        e.key === LOCAL_LISTINGS_STORAGE_KEY ||
+        e.key === LOCAL_DELETED_IDS_STORAGE_KEY ||
+        e.key === null
+      ) {
+        setListings(loadMergedLocalListings(INITIAL_LISTINGS));
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
+  // Realtime subscription for cross-device listing changes (skipped while temporary local listing mode is active)
+  useEffect(() => {
+    if (USE_LOCAL_LISTING_STORAGE) return;
     if (!isSupabaseConfigured || !supabase) return;
     const client = supabase;
 
@@ -948,6 +992,25 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (!user || !session?.access_token) {
       throw new Error('Please log in with a valid account to create a listing.');
     }
+
+    const nowIso = new Date().toISOString();
+
+    if (USE_LOCAL_LISTING_STORAGE) {
+      const newListing: Listing = {
+        ...data,
+        id: createLocalListingId(),
+        user_id: user.id,
+        user,
+        status: 'active',
+        view_count: 0,
+        created_at: nowIso,
+        updated_at: nowIso,
+      };
+      saveLocalListing(newListing);
+      setListings(loadMergedLocalListings(INITIAL_LISTINGS));
+      return newListing;
+    }
+
     if (!isSupabaseConfigured || !supabase) {
       throw new Error('Supabase is not configured.');
     }
@@ -955,7 +1018,6 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     await ensureCurrentUserProfileRow();
 
     const newId = crypto.randomUUID();
-    const nowIso = new Date().toISOString();
 
     const { error } = await supabase
       .from('listings')
@@ -1003,6 +1065,17 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     const { id: _i, user_id: _u, user: _usr, created_at: _c, ...safeUpdates } = updates as any;
 
+    if (USE_LOCAL_LISTING_STORAGE) {
+      const updatedListing: Listing = {
+        ...existing,
+        ...safeUpdates,
+        updated_at: new Date().toISOString(),
+      };
+      saveLocalListing(updatedListing);
+      setListings(loadMergedLocalListings(INITIAL_LISTINGS));
+      return;
+    }
+
     if (isSupabaseConfigured && supabase && isOwner && isUuid(id)) {
       const row = toListingRow(safeUpdates);
       if (Object.keys(row).length) {
@@ -1029,6 +1102,13 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const existing = listings.find((l) => l.id === id);
     if (!existing || !user || existing.user_id !== user.id) {
       throw new Error('You can only delete your own listings.');
+    }
+
+    if (USE_LOCAL_LISTING_STORAGE) {
+      const isStarter = INITIAL_LISTINGS.some((item) => item.id === id);
+      removeLocalListing(id, isStarter);
+      setListings(loadMergedLocalListings(INITIAL_LISTINGS));
+      return;
     }
 
     if (isSupabaseConfigured && supabase && isUuid(id)) {
@@ -2155,6 +2235,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       value={{
         listings,
         isLoadingListings,
+        isLocalListingMode: USE_LOCAL_LISTING_STORAGE,
         refreshListings,
         fetchListingById,
         savedIds,

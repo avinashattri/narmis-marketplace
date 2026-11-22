@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMarketplace } from '../../context/MarketplaceContext';
 import { ProductCard } from '../marketplace/ProductCard';
+import { LocalListingsBanner } from '../common/LocalListingsBanner';
 import { ListingType } from '../../types';
 import { ArrowRight, Flame } from 'lucide-react';
 
@@ -30,6 +31,7 @@ export const FeaturedListingsSection: React.FC = () => {
             <p className="text-sm text-narmis-cream/70 mt-2">
               Explore authentic gear, accessories, instruments, and books ready for exchange.
             </p>
+            <LocalListingsBanner compact className="mt-4" />
           </div>
 
           {/* Type Filter Pills */}

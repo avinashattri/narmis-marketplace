@@ -4,6 +4,8 @@ import { useMarketplace } from '../context/MarketplaceContext';
 import { useAuth } from '../context/AuthContext';
 import { ProductCard } from '../components/marketplace/ProductCard';
 import { EmptyStateIllustration } from '../components/illustrations/CartoonCharacters';
+import { LocalListingsBanner } from '../components/common/LocalListingsBanner';
+import { isLocalListingId } from '../services/localListingsStorage';
 import { ListingCategory, ListingCondition, ListingType } from '../types';
 import {
   Search,
@@ -154,6 +156,9 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({
       })
       .sort((a, b) => {
         if (sortBy === 'newest') {
+          const aLocal = isLocalListingId(a.id) ? 1 : 0;
+          const bLocal = isLocalListingId(b.id) ? 1 : 0;
+          if (aLocal !== bLocal) return bLocal - aLocal;
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         }
         if (sortBy === 'popular') {
@@ -203,6 +208,8 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({
               'Discover peer-owned laptops, cameras, sports gear, books, and musical instruments. Rent, trade, or purchase directly.'}
           </p>
         </div>
+
+        <LocalListingsBanner className="mb-6" />
 
         {/* Search & Main Controls Bar */}
         <div className="bg-narmis-surface rounded-2xl p-4 border border-narmis-mountain/60 shadow-xl mb-8 flex flex-col md:flex-row gap-4 items-center justify-between">

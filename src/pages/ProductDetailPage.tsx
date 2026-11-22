@@ -11,6 +11,7 @@ import { PurchaseModal } from '../components/marketplace/PurchaseModal';
 import { ShareModal } from '../components/marketplace/ShareModal';
 import { useToast } from '../context/ToastContext';
 import { CONDITION_DESCRIPTIONS } from '../services/conditionOptions';
+import { isLocalListingId } from '../services/localListingsStorage';
 import {
   Heart,
   Share2,
@@ -36,6 +37,8 @@ import {
   CheckCircle2,
   Info,
   Edit3,
+  Trash2,
+  HardDrive,
   Camera,
   X,
   FileText,
@@ -57,6 +60,8 @@ export const ProductDetailPage: React.FC = () => {
     addReview,
     hasUserCompletedTransaction,
     addToCart,
+    deleteListing,
+    isLocalListingMode,
     tradeAccess,
   } = useMarketplace();
   const { user, isAuthenticated } = useAuth();
@@ -99,7 +104,7 @@ export const ProductDetailPage: React.FC = () => {
     return (
       <div className="pt-32 pb-24 max-w-4xl mx-auto px-4 text-center space-y-3">
         <Loader2 className="w-8 h-8 text-narmis-gold animate-spin mx-auto" />
-        <p className="text-sm text-narmis-cream/70">Loading listing from Supabase...</p>
+        <p className="text-sm text-narmis-cream/70">Loading listing...</p>
       </div>
     );
   }
@@ -228,15 +233,43 @@ export const ProductDetailPage: React.FC = () => {
             <span>Back to Marketplace</span>
           </Link>
 
-          <div className="flex items-center gap-3">
-            {isOwner && (
-              <Link
-                to={`/create-listing?edit=${listing.id}`}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-narmis-mountain hover:bg-narmis-mountain/80 border border-narmis-gold/40 text-xs font-semibold text-narmis-gold transition-colors"
+          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+            {isLocalListingMode && isLocalListingId(listing.id) && (
+              <span
+                title="Saved in this browser's localStorage (not synchronised across devices)"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-narmis-surface border border-narmis-gold/35 text-[11px] font-semibold text-narmis-gold"
               >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>Edit Listing</span>
-              </Link>
+                <HardDrive className="w-3 h-3" />
+                <span>Stored Locally</span>
+              </span>
+            )}
+            {isOwner && (
+              <>
+                <Link
+                  to={`/create-listing?edit=${listing.id}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-narmis-mountain hover:bg-narmis-mountain/80 border border-narmis-gold/40 text-xs font-semibold text-narmis-gold transition-colors"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Edit Listing</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!window.confirm(`Delete "${listing.title}" from your listings?`)) return;
+                    try {
+                      await deleteListing(listing.id);
+                      showToast('Listing deleted.', 'success');
+                      navigate('/dashboard');
+                    } catch (err: any) {
+                      showToast(err?.message || 'Unable to delete listing.', 'error');
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-950/60 hover:bg-red-900/70 border border-red-500/40 text-xs font-semibold text-red-200 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete</span>
+                </button>
+              </>
             )}
             <div className="flex items-center gap-2">
               <span className="capitalize">{listing.listing_type}</span>

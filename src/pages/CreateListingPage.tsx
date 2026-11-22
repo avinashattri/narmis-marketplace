@@ -37,6 +37,8 @@ import {
   validateImageFile,
 } from '../services/conditionOptions';
 import { uploadImages } from '../services/storage';
+import { prepareImagesForLocalStorage } from '../services/localListingsStorage';
+import { LocalListingsBanner } from '../components/common/LocalListingsBanner';
 import { DefectType } from '../types';
 import {
   DEFAULT_CAMPUS_LOCATION,
@@ -142,7 +144,7 @@ const WARRANTY_OPTIONS = [
 export const CreateListingPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { addListing, updateListing, getListing } = useMarketplace();
+  const { addListing, updateListing, getListing, isLocalListingMode } = useMarketplace();
   const { user, isAuthenticated } = useAuth();
 
   // Edit mode: /create-listing?edit=<listingId>
@@ -260,6 +262,7 @@ export const CreateListingPage: React.FC = () => {
     if (l.purchase_price !== undefined) setPurchasePriceStr(String(l.purchase_price));
     setLocation(l.location);
     setImages(l.images || []);
+    setAgreeTerms(Boolean(l.terms_accepted));
     setHydrated(true);
   }, [editingListing, hydrated]);
 
@@ -498,10 +501,18 @@ export const CreateListingPage: React.FC = () => {
     setErrorMsg('');
 
     try {
-      const uploadedProductImages = user ? await uploadImages(images, user.id, 'product') : images;
+      const uploadedProductImages = isLocalListingMode
+        ? await prepareImagesForLocalStorage(images)
+        : user
+        ? await uploadImages(images, user.id, 'product')
+        : images;
       const uploadedConditionImages =
-        user && conditionImages.length > 0
-          ? await uploadImages(conditionImages, user.id, 'condition')
+        conditionImages.length > 0
+          ? isLocalListingMode
+            ? await prepareImagesForLocalStorage(conditionImages)
+            : user
+            ? await uploadImages(conditionImages, user.id, 'condition')
+            : conditionImages
           : conditionImages;
 
       const payload = {
@@ -567,12 +578,14 @@ export const CreateListingPage: React.FC = () => {
             <span>Circular Economy Creator</span>
           </div>
           <h1 className="font-serif text-3xl sm:text-4xl font-bold text-narmis-parchment">
-            Create a New Listing
+            {isEditMode ? 'Edit Your Listing' : 'Create a New Listing'}
           </h1>
           <p className="text-xs sm:text-sm text-narmis-cream/70 mt-2">
             Give your equipment, electronics, fashion, or gear more than one life.
           </p>
         </div>
+
+        <LocalListingsBanner className="mb-6" />
 
         {/* Wizard Stepper Bar (4 Clean Steps) */}
         <div className="bg-narmis-surface rounded-2xl p-4 border border-narmis-mountain/60 shadow-lg mb-8">
@@ -1686,12 +1699,12 @@ export const CreateListingPage: React.FC = () => {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Publishing to Marketplace...</span>
+                      <span>{isEditMode ? 'Saving Changes...' : 'Publishing to Marketplace...'}</span>
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="w-4 h-4" />
-                      <span>Publish Listing Now</span>
+                      <span>{isEditMode ? 'Save Listing Changes' : 'Publish Listing Now'}</span>
                     </>
                   )}
                 </button>
