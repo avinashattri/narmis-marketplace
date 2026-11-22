@@ -98,13 +98,13 @@ export const Navbar: React.FC = () => {
 
           {/* Right Action Icons & Auth */}
           <div className="hidden lg:flex items-center space-x-3">
-            {/* Hackathon Guide Modal Button */}
+            {/* Platform Guide Modal Button */}
             <button
               onClick={() => setIsDemoGuideOpen(true)}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-narmis-mountain/60 hover:bg-narmis-mountain border border-narmis-gold/40 text-narmis-parchment transition-all hover:scale-105 active:scale-95"
             >
               <Sparkles className="w-3.5 h-3.5 text-narmis-gold animate-pulse" />
-              <span>Demo Guide</span>
+              <span>Platform Guide</span>
             </button>
 
             {/* Create Listing Button */}

@@ -22,8 +22,10 @@ export const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
 
   const [offeredTitle, setOfferedTitle] = useState('');
   const [offeredDesc, setOfferedDesc] = useState('');
-  const [offeredValue, setOfferedValue] = useState<number>(listing.estimated_value ? Math.round(listing.estimated_value * 0.8) : 2000);
-  const [cashAdjustment, setCashAdjustment] = useState<number>(0);
+  const [offeredValueStr, setOfferedValueStr] = useState<string>(
+    listing.estimated_value ? String(Math.round(listing.estimated_value * 0.8)) : '2000'
+  );
+  const [cashAdjustmentStr, setCashAdjustmentStr] = useState<string>('0');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -31,6 +33,8 @@ export const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
   if (!isOpen) return null;
 
   const targetValue = listing.estimated_value || 0;
+  const offeredValue = parseFloat(offeredValueStr) || 0;
+  const cashAdjustment = parseFloat(cashAdjustmentStr) || 0;
   // Net difference calculation: Target Value - (Offered Value + Cash Adjustment)
   const difference = targetValue - (offeredValue + cashAdjustment);
 
@@ -156,11 +160,11 @@ export const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
                     Your Item Estimated Value (₹) *
                   </label>
                   <input
-                    type="number"
-                    min="0"
-                    step="100"
-                    value={offeredValue}
-                    onChange={(e) => setOfferedValue(Number(e.target.value) || 0)}
+                    type="text"
+                    inputMode="numeric"
+                    value={offeredValueStr}
+                    onChange={(e) => setOfferedValueStr(e.target.value.replace(/[^0-9.]/g, ''))}
+                    placeholder="e.g. 2000"
                     className="w-full px-3 py-2 rounded-xl bg-narmis-forestDark border border-narmis-mountain/60 text-xs text-narmis-cream focus:outline-none focus:border-narmis-gold"
                     required
                   />
@@ -171,12 +175,12 @@ export const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
                     Cash Adjustment Offset (₹)
                   </label>
                   <input
-                    type="number"
-                    step="100"
-                    value={cashAdjustment}
-                    onChange={(e) => setCashAdjustment(Number(e.target.value) || 0)}
+                    type="text"
+                    inputMode="numeric"
+                    value={cashAdjustmentStr}
+                    onChange={(e) => setCashAdjustmentStr(e.target.value.replace(/[^0-9.-]/g, ''))}
                     className="w-full px-3 py-2 rounded-xl bg-narmis-forestDark border border-narmis-mountain/60 text-xs text-narmis-cream focus:outline-none focus:border-narmis-gold"
-                    placeholder="e.g. +500 to add cash"
+                    placeholder="e.g. 500 to add cash"
                   />
                 </div>
               </div>

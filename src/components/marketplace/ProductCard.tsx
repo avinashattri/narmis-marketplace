@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Listing } from '../../types';
 import { useMarketplace } from '../../context/MarketplaceContext';
 import { useToast } from '../../context/ToastContext';
+import { ConditionBadge } from './ConditionBadge';
+import { ProductImage } from './ProductImage';
 import {
   Heart,
   MapPin,
@@ -11,6 +13,9 @@ import {
   Calendar,
   ShoppingBag,
   Sparkles,
+  Package,
+  Wrench,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface ProductCardProps {
@@ -65,10 +70,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ listing }) => {
       className="group relative bg-narmis-surface rounded-2xl border border-narmis-mountain/50 hover:border-narmis-gold/60 transition-all duration-300 shadow-md hover:shadow-2xl hover:-translate-y-1.5 flex flex-col overflow-hidden cursor-pointer"
     >
       {/* Image Thumbnail with Overlay Badges */}
-      <div className="relative aspect-[4/3] w-full overflow-hidden bg-narmis-forestDark">
-        <img
-          src={listing.images[0] || 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=800'}
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-narmis-forestDark flex items-center justify-center">
+        <ProductImage
+          src={listing.images && listing.images.length > 0 ? listing.images[0] : undefined}
           alt={listing.title}
+          category={listing.category}
+          title={listing.title}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           loading="lazy"
         />
@@ -85,11 +92,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ listing }) => {
           </span>
         </div>
 
-        {/* Condition Badge */}
+        {/* Condition Badge (Prominently displayed directly on card) */}
         <div className="absolute top-3 right-12 z-10">
-          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-black/60 text-narmis-cream/90 backdrop-blur-md border border-white/10">
-            {listing.condition}
-          </span>
+          <ConditionBadge condition={listing.condition} size="sm" />
         </div>
 
         {/* Save/Favorite Heart Button */}

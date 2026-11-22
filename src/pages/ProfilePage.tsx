@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useMarketplace } from '../context/MarketplaceContext';
 import { useAuth } from '../context/AuthContext';
 import { DEMO_PROFILES } from '../services/mockData';
 import { ProductCard } from '../components/marketplace/ProductCard';
-import { Star, MapPin, Calendar, MessageSquare, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { DEFAULT_CAMPUS_LOCATION } from '../services/locationDefaults';
+import { supabase, isSupabaseConfigured } from '../services/supabase';
+import { UserProfile } from '../types';
+import { Star, MapPin, MessageSquare, GraduationCap, ArrowLeft } from 'lucide-react';
 
 export const ProfilePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -12,31 +15,68 @@ export const ProfilePage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // Find profile
-  const profile =
-    user?.id === id
+  const [fetchedProfile, setFetchedProfile] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || !id || user?.id === id) return;
+    let cancelled = false;
+    supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled && data) {
+          setFetchedProfile({
+            id: data.id,
+            full_name: data.full_name,
+            avatar_url: data.avatar_url,
+            bio: data.bio,
+            location: data.location,
+            college_name: data.college_name,
+            college_verification_status: data.college_verification_status,
+            rating: data.rating,
+            review_count: data.review_count,
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, user?.id]);
+
+  // Sensitive fields (college_id_number, college_id_image) are NEVER rendered on public profiles
+  const matchedFromListings = listings.find((l) => l.user_id === id)?.user;
+  const profile: UserProfile =
+    user?.id === id && user
       ? user
-      : DEMO_PROFILES.find((p) => p.id === id) || {
+      : fetchedProfile ||
+        DEMO_PROFILES.find((p) => p.id === id) ||
+        matchedFromListings || {
           id: id || '',
           full_name: 'Marketplace Member',
-          avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+          avatar_url:
+            'https://ui-avatars.com/api/?name=Member&background=304943&color=EAD3AA&bold=true&size=150',
           bio: 'NARMIS circular community member.',
-          location: 'Bengaluru, India',
-          rating: 4.9,
-          review_count: 5,
+          location: DEFAULT_CAMPUS_LOCATION,
+          college_verification_status: 'Not Submitted',
+          rating: 5.0,
+          review_count: 0,
           joined_date: '2026',
         };
 
   const userListings = listings.filter((l) => l.user_id === profile.id && l.status === 'active');
 
-  const handleMessage = () => {
+  const handleMessage = async () => {
     if (!user) {
       navigate('/login');
       return;
     }
-    const convId = startOrGetConversation(userListings[0]?.id || '', profile.id, `Hello ${profile.full_name}`);
+    await startOrGetConversation(userListings[0]?.id || '', profile.id, `Hello ${profile.full_name}`);
     navigate('/messages');
   };
+
+  const isCollegeVerified = profile.college_verification_status === 'Verified';
 
   return (
     <div className="pt-28 pb-24 bg-narmis-bg min-h-screen text-narmis-cream">
@@ -49,7 +89,7 @@ export const ProfilePage: React.FC = () => {
           <span>Back to Marketplace</span>
         </Link>
 
-        {/* Profile Bio Card */}
+        {/* Public Profile Bio Card */}
         <div className="bg-narmis-surface rounded-3xl p-6 sm:p-10 border border-narmis-mountain/60 shadow-xl mb-12 flex flex-col md:flex-row items-center md:items-start justify-between gap-8">
           <div className="flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
             <img
@@ -62,24 +102,39 @@ export const ProfilePage: React.FC = () => {
                 <h1 className="font-serif text-3xl font-bold text-narmis-parchment">
                   {profile.full_name}
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-narmis-mountain text-narmis-gold border border-narmis-gold/40 flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3" />
-                  Verified
-                </span>
+                {/* Small campus badge shown ONLY when user's verification status is genuinely Verified */}
+                {isCollegeVerified && (
+                  <span
+                    className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/40 flex items-center gap-1"
+                    title={`Verified student at ${profile.college_name || 'Chitkara University'}`}
+                  >
+                    <GraduationCap className="w-3 h-3" />
+                    <span>Verified Campus ID</span>
+                  </span>
+                )}
               </div>
 
-              <div className="flex items-center justify-center sm:justify-start gap-4 text-xs text-narmis-cream/80">
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-1 text-xs text-narmis-cream/80">
                 <div className="flex items-center gap-1 text-amber-300 font-bold">
                   <Star className="w-4 h-4 fill-current" />
                   <span>{profile.rating?.toFixed(1) || '5.0'}</span>
                 </div>
                 <span>·</span>
-                <span>{profile.review_count || 12} community reviews</span>
+                <span>{profile.review_count || 0} community reviews</span>
                 <span>·</span>
                 <span className="flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5 text-narmis-gold" />
-                  <span>{profile.location || 'Bengaluru'}</span>
+                  <span>{profile.location || DEFAULT_CAMPUS_LOCATION}</span>
                 </span>
+                {profile.college_name && (
+                  <>
+                    <span>·</span>
+                    <span className="flex items-center gap-1 text-narmis-gold">
+                      <GraduationCap className="w-3.5 h-3.5" />
+                      <span>{profile.college_name}</span>
+                    </span>
+                  </>
+                )}
               </div>
 
               <p className="text-xs sm:text-sm text-narmis-cream/70 max-w-lg leading-relaxed pt-1">

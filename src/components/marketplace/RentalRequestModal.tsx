@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Listing } from '../../types';
 import { useMarketplace } from '../../context/MarketplaceContext';
 import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { X, Calendar, Clock, CheckCircle2 } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { X, Calendar, Clock, CheckCircle2, ShieldCheck, FileText } from 'lucide-react';
 
 interface RentalRequestModalProps {
   listing: Listing;
@@ -25,6 +25,7 @@ export const RentalRequestModal: React.FC<RentalRequestModalProps> = ({
   );
   const [durationUnits, setDurationUnits] = useState(2);
   const [message, setMessage] = useState('');
+  const [agreeTerms, setAgreeTerms] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -203,6 +204,35 @@ export const RentalRequestModal: React.FC<RentalRequestModalProps> = ({
               </div>
             </div>
 
+            {/* Terms & Product Care Agreement */}
+            <div className="p-3.5 rounded-xl bg-narmis-forestDark/80 border border-narmis-gold/30 space-y-2 text-xs">
+              <div className="flex items-center gap-1.5 text-narmis-gold font-bold">
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                <span>Product Care & Damage Responsibility</span>
+              </div>
+              <p className="text-[11px] text-narmis-cream/70 leading-relaxed">
+                You agree to take reasonable care of the rented equipment and accept responsibility for loss, damage, or misuse during your possession, subject to documented repair or replacement.
+              </p>
+              <div className="pt-1">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={agreeTerms}
+                    onChange={(e) => setAgreeTerms(e.target.checked)}
+                    className="w-4 h-4 rounded text-narmis-gold focus:ring-narmis-gold bg-narmis-surface border-narmis-mountain mt-0.5 shrink-0"
+                    required
+                  />
+                  <span className="text-[11px] font-semibold text-narmis-parchment">
+                    I agree to the{' '}
+                    <Link to="/terms" target="_blank" className="text-narmis-gold underline">
+                      Terms of Responsibility
+                    </Link>{' '}
+                    and will document item condition upon handover. *
+                  </span>
+                </label>
+              </div>
+            </div>
+
             <div className="pt-2 flex items-center gap-3">
               <button
                 type="button"
@@ -213,8 +243,12 @@ export const RentalRequestModal: React.FC<RentalRequestModalProps> = ({
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className="w-2/3 py-3 rounded-xl bg-narmis-gold hover:bg-narmis-accent text-narmis-charcoal text-xs font-bold uppercase tracking-wider shadow-lg transition-all"
+                disabled={isSubmitting || !agreeTerms}
+                className={`w-2/3 py-3 rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg transition-all ${
+                  !agreeTerms
+                    ? 'bg-narmis-mountain text-narmis-cream/50 cursor-not-allowed'
+                    : 'bg-narmis-gold hover:bg-narmis-accent text-narmis-charcoal'
+                }`}
               >
                 {isSubmitting ? 'Sending Request...' : 'Submit Rental Request'}
               </button>

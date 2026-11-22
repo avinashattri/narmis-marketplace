@@ -31,7 +31,7 @@ export const Footer: React.FC = () => {
               </a>
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold bg-narmis-mountain/60 text-narmis-gold border border-narmis-gold/30">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Hackathon Edition</span>
+                <span>Campus Circular Edition</span>
               </span>
             </div>
           </div>
@@ -123,7 +123,9 @@ export const Footer: React.FC = () => {
                 <span className="hover:text-narmis-parchment cursor-pointer">Privacy Policy</span>
               </li>
               <li>
-                <span className="hover:text-narmis-parchment cursor-pointer">Terms & Conditions</span>
+                <Link to="/terms" className="hover:text-narmis-gold transition-colors underline-offset-4 hover:underline">
+                  Terms & Conditions
+                </Link>
               </li>
               <li className="flex items-center gap-1.5 pt-2 text-narmis-parchment/80">
                 <Mail className="w-3.5 h-3.5" />
@@ -139,7 +141,7 @@ export const Footer: React.FC = () => {
           <div className="flex items-center gap-1 text-narmis-cream/70">
             <span>Crafted with</span>
             <Heart className="w-3.5 h-3.5 text-narmis-terracotta fill-narmis-terracotta" />
-            <span>for the Hackathon</span>
+            <span>for Sustainable Campus Sharing</span>
           </div>
           <p className="font-mono text-[11px] text-narmis-gold/80">
             PHILOSOPHY: RENT · TRADE · PURCHASE

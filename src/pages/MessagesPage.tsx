@@ -37,12 +37,18 @@ export const MessagesPage: React.FC = () => {
   const activeConversation = conversations.find((c) => c.id === activeConversationId);
   const activeMessages = activeConversationId ? messages[activeConversationId] || [] : [];
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputMessage.trim() || !activeConversationId) return;
 
-    sendMessage(activeConversationId, inputMessage.trim(), 'text');
+    const text = inputMessage.trim();
     setInputMessage('');
+    try {
+      await sendMessage(activeConversationId, text, 'text');
+    } catch (err) {
+      console.error(err);
+      setInputMessage(text);
+    }
   };
 
   const getPartner = (conv: typeof activeConversation) => {
@@ -65,8 +71,8 @@ export const MessagesPage: React.FC = () => {
             />
             <span className="font-semibold text-narmis-parchment">
               {isSupabaseConnected
-                ? 'Supabase Realtime Channel Connected'
-                : 'Demo P2P Messaging (Hackathon Test Mode - Reactive Store)'}
+                ? 'Live Peer Messaging Connected'
+                : 'Peer-to-Peer Messaging Workspace'}
             </span>
           </div>
           <span className="text-[11px] text-narmis-cream/60 hidden sm:inline">

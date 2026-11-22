@@ -140,7 +140,7 @@ export const HeroParallax: React.FC = () => {
             </div>
             <div className="hidden sm:flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-narmis-gold" />
-              <span>Zero Platform Commission (Demo)</span>
+              <span>Zero Platform Commission</span>
             </div>
           </motion.div>
         </div>

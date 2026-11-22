@@ -34,9 +34,9 @@ export const HowItWorksSection: React.FC = () => {
     {
       step: '04',
       title: 'Handover & Give It New Life',
-      desc: 'Complete the demo checkout, hand over the item, leave mutual peer reviews, and keep the circular economy moving forward.',
+      desc: 'Complete your payment, hand over the item, leave mutual peer reviews, and keep the circular economy moving forward.',
       illustration: <HeadphoneSaleIllustration className="w-36 h-36" />,
-      tag: 'Verified Handover',
+      tag: 'Peer Handover',
     },
   ];
 

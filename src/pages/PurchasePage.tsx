@@ -20,7 +20,7 @@ export const PurchasePage: React.FC = () => {
               </h1>
               <p className="text-sm sm:text-base text-narmis-cream/80 leading-relaxed">
                 Give timeless gear, headphones, ergonomic chairs, cricket bats, and consoles a permanent
-                home. Secure demo transactions and direct seller coordinate pick-up.
+                home. Direct UPI QR payments and community handover coordination.
               </p>
 
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 pt-2 text-xs text-narmis-cream/70">
@@ -30,7 +30,7 @@ export const PurchasePage: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-1.5">
                   <CreditCard className="w-4 h-4 text-narmis-gold" />
-                  <span>Demo Checkout Simulation</span>
+                  <span>Direct UPI QR Payment</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <ShieldCheck className="w-4 h-4 text-narmis-gold" />

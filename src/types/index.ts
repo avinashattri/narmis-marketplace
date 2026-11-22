@@ -1,6 +1,15 @@
 export type ListingType = 'rent' | 'trade' | 'purchase';
 
-export type ListingCondition = 'Brand New' | 'Like New' | 'Excellent' | 'Good' | 'Fair';
+export type ListingCondition = 'Brand New' | 'Like New' | 'Excellent' | 'Good' | 'Fair' | 'Needs Repair';
+
+export type DefectType =
+  | 'No visible damage'
+  | 'Minor scratches'
+  | 'Major scratches'
+  | 'Dents or physical marks'
+  | 'Cracks or broken parts'
+  | 'Functional issues'
+  | 'Other';
 
 export type ListingCategory =
   | 'Electronics'
@@ -15,6 +24,12 @@ export type ListingCategory =
   | 'Furniture'
   | 'Other';
 
+export type CollegeVerificationStatus =
+  | 'Not Submitted'
+  | 'Pending Verification'
+  | 'Verified'
+  | 'Rejected';
+
 export interface UserProfile {
   id: string;
   full_name: string;
@@ -22,6 +37,13 @@ export interface UserProfile {
   avatar_url: string;
   bio?: string;
   location?: string;
+  college_name?: string;
+  college_verification_status?: CollegeVerificationStatus;
+  college_submitted_at?: string;
+  college_verified_at?: string;
+  // Private owner-only fields (never populated on public profile reads)
+  college_id_number?: string;
+  college_id_image?: string;
   rating?: number;
   review_count?: number;
   joined_date?: string;
@@ -37,6 +59,38 @@ export interface Listing {
   condition: ListingCondition;
   listing_type: ListingType;
   
+  // Enhanced Structured Fields
+  brand?: string;
+  model_name?: string;
+  product_age?: string;
+  purchase_date?: string;
+  original_mrp?: number;
+  accessories_included?: string;
+  warranty_status?: string;
+  invoice_available?: boolean;
+  terms_accepted?: boolean;
+  terms_accepted_at?: string;
+  terms_version?: string;
+
+  // Wear & Tear / Defects disclosure
+  // undefined / empty array = seller did not answer (NOT the same as "No visible damage")
+  defects?: DefectType[];
+  defect_other?: string;
+  defect_description?: string;
+
+  // What's Included
+  included_items?: string[];
+  included_custom?: string;
+  missing_accessories?: string;
+
+  // Packaging & documentation (undefined = not specified)
+  packaging_available?: boolean;
+  warranty_valid?: boolean;
+  documentation_notes?: string;
+
+  // Genuine photos of scratches/defects, shown in a separate "Condition Photos" gallery
+  condition_images?: string[];
+
   // Rent
   rental_price?: number;
   rental_duration?: 'Hourly' | 'Daily' | 'Weekly';
@@ -73,6 +127,9 @@ export interface RentalRequest {
   total_amount: number;
   status: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled';
   message: string;
+  terms_accepted?: boolean;
+  terms_accepted_at?: string;
+  terms_version?: string;
   created_at: string;
 }
 
@@ -88,8 +145,10 @@ export interface TradeOffer {
   offered_item_image?: string;
   offered_item_value: number;
   cash_adjustment: number; // positive = requester gives extra cash, negative = requester asks cash
-  status: 'pending' | 'accepted' | 'rejected' | 'completed' | 'cancelled';
+  status: 'pending' | 'negotiating' | 'accepted' | 'rejected' | 'completed' | 'cancelled';
   negotiation_notes?: string;
+  terms_accepted?: boolean;
+  terms_accepted_at?: string;
   created_at: string;
 }
 
@@ -102,8 +161,12 @@ export interface PurchaseTransaction {
   seller_id: string;
   seller?: UserProfile;
   amount: number;
-  status: 'completed' | 'pending' | 'refunded';
+  status: 'payment_submitted' | 'pending' | 'completed' | 'refunded' | 'cancelled';
   payment_method: string;
+  payment_reference?: string;
+  payment_confirmed_by_buyer?: boolean;
+  payment_confirmed_at?: string;
+  payment_verification_status?: 'Awaiting Payment' | 'Payment Submitted' | 'Verified' | 'Cancelled';
   receipt_number: string;
   shipping_address: string;
   created_at: string;

@@ -42,6 +42,7 @@ const CONDITIONS: ListingCondition[] = [
   'Excellent',
   'Good',
   'Fair',
+  'Needs Repair',
 ];
 
 interface ExplorePageProps {
@@ -568,7 +569,7 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({
                       <div className="pt-2 flex items-center justify-between">
                         <span className="text-[11px] text-narmis-cream/60 flex items-center gap-1">
                           <Users className="w-3.5 h-3.5 text-narmis-gold" />
-                          <span>Visible to all Bengaluru community members</span>
+                          <span>Visible to campus & local community members</span>
                         </span>
 
                         <button

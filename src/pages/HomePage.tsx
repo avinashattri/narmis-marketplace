@@ -84,18 +84,17 @@ export const HomePage: React.FC = () => {
                 ))}
               </div>
               <p className="text-xs sm:text-sm text-narmis-cream/80 italic leading-relaxed">
-                "Rented a Sony A7 IV camera for my final semester short film for ₹1,200/day. Buying it would
-                have cost ₹2.5 Lakhs. NARMIS is a lifesaver for students!"
+                "Rented out my Sony A7 IV camera for a campus documentary for ₹1,200/day. The rental request and confirmation workflow in chat was super smooth!"
               </p>
               <div className="flex items-center gap-3 pt-2 border-t border-narmis-mountain/30">
                 <img
-                  src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150"
-                  alt="Priya Patel"
-                  className="w-8 h-8 rounded-full object-cover"
+                  src="https://ui-avatars.com/api/?name=Shraddha&background=80674D&color=F5E9D2&bold=true&size=150"
+                  alt="Shraddha"
+                  className="w-8 h-8 rounded-full object-cover ring-1 ring-narmis-gold/60"
                 />
                 <div>
-                  <h4 className="text-xs font-bold text-narmis-parchment">Priya Patel</h4>
-                  <p className="text-[10px] text-narmis-cream/60">Film Student, Koramangala</p>
+                  <h4 className="text-xs font-bold text-narmis-parchment">Shraddha</h4>
+                  <p className="text-[10px] text-narmis-cream/60">Filmmaker & Vocalist, Whitefield</p>
                 </div>
               </div>
             </div>
@@ -107,18 +106,18 @@ export const HomePage: React.FC = () => {
                 ))}
               </div>
               <p className="text-xs sm:text-sm text-narmis-cream/80 italic leading-relaxed">
-                "Traded my Keychron mechanical keyboard for a Logitech MX Master mouse plus ₹1,200 cash.
+                "Traded my Keychron mechanical keyboard for a Logitech MX Master mouse plus ₹1,200 cash offset.
                 The trade valuation and mutual approval flow worked seamlessly!"
               </p>
               <div className="flex items-center gap-3 pt-2 border-t border-narmis-mountain/30">
                 <img
-                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"
-                  alt="Aarav Sharma"
-                  className="w-8 h-8 rounded-full object-cover"
+                  src="https://ui-avatars.com/api/?name=Sanchit&background=B88A4A&color=142523&bold=true&size=150"
+                  alt="Sanchit"
+                  className="w-8 h-8 rounded-full object-cover ring-1 ring-narmis-gold/60"
                 />
                 <div>
-                  <h4 className="text-xs font-bold text-narmis-parchment">Aarav Sharma</h4>
-                  <p className="text-[10px] text-narmis-cream/60">Software Engineer, Indiranagar</p>
+                  <h4 className="text-xs font-bold text-narmis-parchment">Sanchit</h4>
+                  <p className="text-[10px] text-narmis-cream/60">Volleyball Player & Gamer, Indiranagar</p>
                 </div>
               </div>
             </div>
@@ -130,18 +129,17 @@ export const HomePage: React.FC = () => {
                 ))}
               </div>
               <p className="text-xs sm:text-sm text-narmis-cream/80 italic leading-relaxed">
-                "Purchased a Bosch drill kit for our garage workbench. Seller communication was immediate
-                in the built-in chat, and pickup was done within 2 hours."
+                "Circulated custom 5-inch FPV drone racing gear and flight controllers. Communication in the built-in P2P chat was instant and verified."
               </p>
               <div className="flex items-center gap-3 pt-2 border-t border-narmis-mountain/30">
                 <img
-                  src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150"
-                  alt="Rohan Verma"
-                  className="w-8 h-8 rounded-full object-cover"
+                  src="https://ui-avatars.com/api/?name=Javed+Bhaiya&background=304943&color=EAD3AA&bold=true&size=150"
+                  alt="Javed Bhaiya"
+                  className="w-8 h-8 rounded-full object-cover ring-1 ring-narmis-gold/60"
                 />
                 <div>
-                  <h4 className="text-xs font-bold text-narmis-parchment">Rohan Verma</h4>
-                  <p className="text-[10px] text-narmis-cream/60">Maker & Builder, Whitefield</p>
+                  <h4 className="text-xs font-bold text-narmis-parchment">Javed Bhaiya</h4>
+                  <p className="text-[10px] text-narmis-cream/60">FPV Drone Builder, Frazer Town</p>
                 </div>
               </div>
             </div>

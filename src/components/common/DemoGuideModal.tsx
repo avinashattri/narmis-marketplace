@@ -42,10 +42,10 @@ export const DemoGuideModal: React.FC<DemoGuideModalProps> = ({ isOpen, onClose 
           </div>
           <div>
             <h3 className="font-serif text-xl font-bold text-narmis-parchment">
-              NARMIS Hackathon Evaluation Guide
+              NARMIS Platform Guide
             </h3>
             <p className="text-xs text-narmis-cream/60">
-              Interactive Walkthrough for Evaluators & Judges
+              How Renting, Trading & Direct Purchases Work
             </p>
           </div>
         </div>
@@ -90,7 +90,7 @@ export const DemoGuideModal: React.FC<DemoGuideModalProps> = ({ isOpen, onClose 
                 : 'text-narmis-cream/70 hover:text-white'
             }`}
           >
-            Demo Checkout
+            Direct Purchase
           </button>
           <button
             onClick={() => setActiveTab('judge')}
@@ -100,7 +100,7 @@ export const DemoGuideModal: React.FC<DemoGuideModalProps> = ({ isOpen, onClose 
                 : 'text-narmis-cream/70 hover:text-white'
             }`}
           >
-            Judge Tips
+            Platform Trust
           </button>
         </div>
 
@@ -139,7 +139,7 @@ export const DemoGuideModal: React.FC<DemoGuideModalProps> = ({ isOpen, onClose 
               <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-600/30">
                 <ShoppingBag className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
                 <span className="font-bold text-narmis-parchment text-xs block">PURCHASE</span>
-                <span className="text-[10px] text-narmis-cream/60">Demo Checkout & Receipts</span>
+                <span className="text-[10px] text-narmis-cream/60">UPI QR & Order Records</span>
               </div>
             </div>
           </div>
@@ -148,23 +148,23 @@ export const DemoGuideModal: React.FC<DemoGuideModalProps> = ({ isOpen, onClose 
         {activeTab === 'trade' && (
           <div className="space-y-4 text-xs sm:text-sm text-narmis-cream/80 leading-relaxed animate-fadeIn">
             <h4 className="font-serif font-bold text-narmis-parchment text-base">
-              Testing the Trade Negotiation Engine:
+              How the Trade Negotiation Engine Works:
             </h4>
             <ol className="list-decimal list-inside space-y-2 text-xs">
               <li>
                 Navigate to <strong className="text-narmis-gold">Trade</strong> in the navigation bar.
               </li>
               <li>
-                Click on the <strong className="text-narmis-parchment">Keychron Q1 Pro Mechanical Keyboard</strong> (owned by Sanchit).
+                Click on any trade listing (for example, Sanchit&apos;s <strong className="text-narmis-parchment">Keychron Q1 Pro Mechanical Keyboard</strong>).
               </li>
               <li>
-                Click <strong className="text-narmis-gold">Make Trade Offer</strong>. Notice the automated valuation board that calculates the value difference between the keyboard and your offer.
+                Click <strong className="text-narmis-gold">Make Trade Offer</strong>. The valuation calculator displays the difference between the target listing and your proposed item.
               </li>
               <li>
-                Submit your offer. Notice how an interactive <strong className="text-narmis-parchment">Trade Proposal Card</strong> is created in <strong className="text-narmis-gold">Messages</strong>.
+                Submit your offer. An interactive <strong className="text-narmis-parchment">Trade Proposal Card</strong> is posted into <strong className="text-narmis-gold">Messages</strong>.
               </li>
               <li>
-                Click the bottom-right <strong className="text-narmis-gold">Demo Switcher</strong> and switch to <strong className="text-narmis-parchment">Sanchit</strong>. Open the <strong className="text-narmis-gold">Dashboard → Trades tab</strong> to see the incoming offer and click <em>Accept</em> or <em>Reject</em>!
+                Negotiate cash offsets and finalize the exchange agreement directly with the listing owner.
               </li>
             </ol>
 
@@ -177,23 +177,23 @@ export const DemoGuideModal: React.FC<DemoGuideModalProps> = ({ isOpen, onClose 
         {activeTab === 'rent' && (
           <div className="space-y-4 text-xs sm:text-sm text-narmis-cream/80 leading-relaxed animate-fadeIn">
             <h4 className="font-serif font-bold text-narmis-parchment text-base">
-              Testing the Rental Reservation Flow:
+              How Peer Rental Reservations Work:
             </h4>
             <ol className="list-decimal list-inside space-y-2 text-xs">
               <li>
                 Click <strong className="text-narmis-gold">Rent</strong> in the top navigation.
               </li>
               <li>
-                Select the <strong className="text-narmis-parchment">Sony Alpha 7 IV Camera</strong> (Daily rate: ₹1,200).
+                Select a rental item such as the <strong className="text-narmis-parchment">Sony Alpha 7 IV Camera</strong> (Daily rate: ₹1,200).
               </li>
               <li>
-                Click <strong className="text-narmis-gold">Request Rental</strong>. Choose your dates and duration (e.g. 2 days = ₹2,400).
+                Click <strong className="text-narmis-gold">Request Rental</strong>, pick your dates and duration, and accept the rental care agreement.
               </li>
               <li>
-                Submit the request. An active rental card is automatically dispatched into the owner's chat thread.
+                Submit the request. A booking card is sent to the owner in <strong className="text-narmis-gold">Messages</strong> and their Dashboard.
               </li>
               <li>
-                Switch to <strong className="text-narmis-parchment">Shraddha</strong> using the Demo Switcher to review and approve the booking in the Dashboard or chat!
+                Coordinate handover details and confirm pickup & return directly in chat.
               </li>
             </ol>
 
@@ -206,23 +206,23 @@ export const DemoGuideModal: React.FC<DemoGuideModalProps> = ({ isOpen, onClose 
         {activeTab === 'buy' && (
           <div className="space-y-4 text-xs sm:text-sm text-narmis-cream/80 leading-relaxed animate-fadeIn">
             <h4 className="font-serif font-bold text-narmis-parchment text-base">
-              Testing Demo Purchases & Simulated Receipts:
+              Completing a Direct Purchase Payment:
             </h4>
             <ol className="list-decimal list-inside space-y-2 text-xs">
               <li>
                 Navigate to <strong className="text-narmis-gold">Purchase</strong>.
               </li>
               <li>
-                Choose any item (e.g. <em>Nintendo Switch OLED</em> or <em>Sony WH-1000XM5</em>).
+                Choose an item and inspect its condition grade, disclosed defects, and included accessories.
               </li>
               <li>
-                Click <strong className="text-emerald-400">Purchase Item (Demo)</strong>.
+                Click <strong className="text-emerald-400">Proceed to Payment</strong>.
               </li>
               <li>
-                Select simulated UPI or Card payment, enter your delivery address, and confirm.
+                Scan the UPI QR code (or enlarge/save it), complete payment in your UPI app, enter your handover address, and confirm payment.
               </li>
               <li>
-                Enjoy the celebratory confetti! A verified receipt code (<code className="text-narmis-gold">NRM-XXXX</code>) and handover verification QR code are produced immediately.
+                A payment submission record (<code className="text-narmis-gold">NRM-XXXX</code>) is created while the seller verifies receipt before handover.
               </li>
             </ol>
 
@@ -235,28 +235,29 @@ export const DemoGuideModal: React.FC<DemoGuideModalProps> = ({ isOpen, onClose 
         {activeTab === 'judge' && (
           <div className="space-y-4 text-xs sm:text-sm text-narmis-cream/80 leading-relaxed animate-fadeIn">
             <h4 className="font-serif font-bold text-narmis-parchment text-base">
-              Key Architectural Points for Evaluation:
+              NARMIS Trust & Architecture Highlights:
             </h4>
             <ul className="space-y-2 text-xs">
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="w-4 h-4 text-narmis-gold shrink-0 mt-0.5" />
                 <span>
-                  <strong>Full Relational Database Schema:</strong> Prepared with 10 tables, Row Level
-                  Security policies, and triggers in <code>supabase/migrations/</code>.
+                  <strong>Campus Verification & Privacy:</strong> College IDs are stored as
+                  authenticated private assets via Cloudinary and MongoDB Atlas with strict
+                  server-side ownership guards.
                 </span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="w-4 h-4 text-narmis-gold shrink-0 mt-0.5" />
                 <span>
-                  <strong>Dual-Store Architecture:</strong> Supabase-connected when configured, with a
-                  seamless simulated reactive store for zero-friction hackathon evaluation.
+                  <strong>Transparent Condition Disclosure:</strong> Standardized condition badges,
+                  defect checklists, accessory breakdowns, and separate condition photo galleries.
                 </span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="w-4 h-4 text-narmis-gold shrink-0 mt-0.5" />
                 <span>
-                  <strong>Brand Identity:</strong> Custom medieval mountain castle parallax hero matching
-                  the reference image, with cohesive editorial cartoon characters.
+                  <strong>Circular Identity:</strong> Custom forest-green, parchment, and gold aesthetic
+                  designed around Chitkara University and surrounding peer communities.
                 </span>
               </li>
             </ul>

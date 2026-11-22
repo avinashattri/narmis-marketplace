@@ -144,7 +144,7 @@ export const ThreeFeaturesSection: React.FC = () => {
                   <ShoppingBag className="w-3.5 h-3.5" />
                   Feature C · Purchase
                 </span>
-                <span className="text-xs font-semibold text-narmis-cream/60">Demo Checkout Ready</span>
+                <span className="text-xs font-semibold text-narmis-cream/60">Direct UPI QR Ready</span>
               </div>
 
               {/* Character Illustration */}
@@ -156,22 +156,22 @@ export const ThreeFeaturesSection: React.FC = () => {
                 Purchase Pre-Loved Goods
               </h3>
               <p className="text-sm text-narmis-cream/75 leading-relaxed mb-6">
-                When you want to keep something permanently, purchase certified condition pre-loved items
-                from trusted community sellers with immediate demo checkout and receipts.
+                When you want to keep something permanently, purchase inspected pre-loved items
+                from community sellers with direct UPI QR payment and clear order records.
               </p>
 
               <ul className="space-y-2.5 text-xs text-narmis-cream/80 mb-6">
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-narmis-gold shrink-0" />
-                  <span>Fair INR pricing with verified seller profiles</span>
+                  <span>Fair INR pricing with community seller profiles</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-narmis-gold shrink-0" />
-                  <span>Item condition grading (Brand New to Fair)</span>
+                  <span>Transparent item condition & defect disclosure</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-narmis-gold shrink-0" />
-                  <span>Simulated hackathon payment & instant receipts</span>
+                  <span>Direct UPI QR payment & confirmation tracking</span>
                 </li>
               </ul>
             </div>

@@ -5,8 +5,6 @@ import { MarketplaceProvider } from './context/MarketplaceContext';
 import { ToastProvider } from './context/ToastContext';
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
-import { DemoPersonaSwitcher } from './components/common/DemoPersonaSwitcher';
-
 // Pages
 import { HomePage } from './pages/HomePage';
 import { ExplorePage } from './pages/ExplorePage';
@@ -21,6 +19,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { AboutPage } from './pages/AboutPage';
+import { TermsPage } from './pages/TermsPage';
 
 // Scroll to top on page navigation
 function ScrollToTop() {
@@ -56,13 +55,13 @@ export function App() {
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/signup" element={<SignupPage />} />
                   <Route path="/about" element={<AboutPage />} />
+                  <Route path="/terms" element={<TermsPage />} />
                   {/* Fallback */}
                   <Route path="*" element={<ExplorePage />} />
                 </Routes>
               </main>
 
               <Footer />
-              <DemoPersonaSwitcher />
             </div>
           </ToastProvider>
         </MarketplaceProvider>
