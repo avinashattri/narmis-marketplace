@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useMarketplace } from '../context/MarketplaceContext';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,7 @@ import { ProductImage } from '../components/marketplace/ProductImage';
 import { RentalRequestModal } from '../components/marketplace/RentalRequestModal';
 import { TradeOfferModal } from '../components/marketplace/TradeOfferModal';
 import { PurchaseModal } from '../components/marketplace/PurchaseModal';
+import { ShareModal } from '../components/marketplace/ShareModal';
 import { useToast } from '../context/ToastContext';
 import { CONDITION_DESCRIPTIONS } from '../services/conditionOptions';
 import {
@@ -19,6 +20,8 @@ import {
   Calendar,
   Repeat,
   ShoppingBag,
+  ShoppingCart,
+  Loader2,
   MessageSquare,
   ArrowLeft,
   Sparkles,
@@ -45,6 +48,7 @@ export const ProductDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const {
     getListing,
+    fetchListingById,
     listings,
     isSaved,
     toggleSaveListing,
@@ -52,14 +56,31 @@ export const ProductDetailPage: React.FC = () => {
     getListingReviews,
     addReview,
     hasUserCompletedTransaction,
+    addToCart,
+    tradeAccess,
   } = useMarketplace();
   const { user, isAuthenticated } = useAuth();
   const { showToast } = useToast();
 
   const listing = getListing(id || '');
+  const [isFetchingDirect, setIsFetchingDirect] = useState(false);
+
+  useEffect(() => {
+    if (id && !listing) {
+      let active = true;
+      setIsFetchingDirect(true);
+      fetchListingById(id).finally(() => {
+        if (active) setIsFetchingDirect(false);
+      });
+      return () => {
+        active = false;
+      };
+    }
+  }, [id, listing, fetchListingById]);
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const [isCopied, setIsCopied] = useState(false);
+  const [isCopied, _setIsCopied] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [selectedConditionPhoto, setSelectedConditionPhoto] = useState<string | null>(null);
 
   // Reviews state (filtered specifically for this listing)
@@ -73,6 +94,15 @@ export const ProductDetailPage: React.FC = () => {
   const [isRentalModalOpen, setIsRentalModalOpen] = useState(false);
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
   const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
+
+  if (!listing && isFetchingDirect) {
+    return (
+      <div className="pt-32 pb-24 max-w-4xl mx-auto px-4 text-center space-y-3">
+        <Loader2 className="w-8 h-8 text-narmis-gold animate-spin mx-auto" />
+        <p className="text-sm text-narmis-cream/70">Loading listing from Supabase...</p>
+      </div>
+    );
+  }
 
   if (!listing) {
     return (
@@ -106,9 +136,20 @@ export const ProductDetailPage: React.FC = () => {
 
   // Share handler
   const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
+    setIsShareModalOpen(true);
+  };
+
+  const handleAddToCartClick = async () => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    try {
+      await addToCart(listing.id, 1);
+      showToast(`Added "${listing.title}" to your purchase cart!`, 'success');
+    } catch (err: any) {
+      showToast(err?.message || 'Unable to add item to cart.', 'error');
+    }
   };
 
   // Contact seller handler
@@ -796,23 +837,49 @@ export const ProductDetailPage: React.FC = () => {
                 )}
 
                 {listing.listing_type === 'trade' && (
-                  <button
-                    onClick={() => setIsTradeModalOpen(true)}
-                    className="w-full py-4 rounded-2xl bg-narmis-gold hover:bg-narmis-accent text-narmis-charcoal font-serif text-sm font-bold uppercase tracking-wider transition-all shadow-xl hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <Repeat className="w-4 h-4" />
-                    <span>Make Trade Offer</span>
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => setIsTradeModalOpen(true)}
+                      className="w-full py-4 rounded-2xl bg-narmis-gold hover:bg-narmis-accent text-narmis-charcoal font-serif text-sm font-bold uppercase tracking-wider transition-all shadow-xl hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <Repeat className="w-4 h-4" />
+                      <span>Make Trade Offer</span>
+                    </button>
+                    <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-narmis-forestDark/80 border border-narmis-gold/30 text-[11px] text-narmis-cream/80">
+                      <span>
+                        {tradeAccess.subscription_active
+                          ? 'Annual Trade Pass Active'
+                          : `${tradeAccess.free_trials_remaining} of ${tradeAccess.free_trials_total} Free Trade Trials Left`}
+                      </span>
+                      <Link
+                        to="/subscription"
+                        className="text-narmis-gold font-bold hover:underline"
+                      >
+                        {tradeAccess.subscription_active ? 'Pass Info' : '₹299/yr Pass'}
+                      </Link>
+                    </div>
+                  </div>
                 )}
 
                 {listing.listing_type === 'purchase' && (
-                  <button
-                    onClick={() => setIsPurchaseModalOpen(true)}
-                    className="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-narmis-charcoal font-serif text-sm font-bold uppercase tracking-wider transition-all shadow-xl hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <ShoppingBag className="w-4 h-4" />
-                    <span>Proceed to Payment</span>
-                  </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                      onClick={() => setIsPurchaseModalOpen(true)}
+                      className="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-narmis-charcoal font-serif text-xs sm:text-sm font-bold uppercase tracking-wider transition-all shadow-xl hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <ShoppingBag className="w-4 h-4" />
+                      <span>Buy Now</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddToCartClick}
+                      disabled={isOwner || listing.status !== 'active'}
+                      className="w-full py-4 rounded-2xl bg-narmis-mountain hover:bg-narmis-gold hover:text-narmis-charcoal disabled:opacity-45 text-narmis-parchment font-serif text-xs sm:text-sm font-bold uppercase tracking-wider transition-all border border-narmis-gold/40 flex items-center justify-center gap-2"
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      <span>Add to Cart</span>
+                    </button>
+                  </div>
                 )}
 
                 {/* Secondary Chat with Owner */}
@@ -958,6 +1025,12 @@ export const ProductDetailPage: React.FC = () => {
         listing={listing}
         isOpen={isPurchaseModalOpen}
         onClose={() => setIsPurchaseModalOpen(false)}
+      />
+
+      <ShareModal
+        listing={listing}
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
       />
     </div>
   );

@@ -20,6 +20,8 @@ import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { AboutPage } from './pages/AboutPage';
 import { TermsPage } from './pages/TermsPage';
+import { CartPage } from './pages/CartPage';
+import { SubscriptionPage } from './pages/SubscriptionPage';
 
 // Scroll to top on page navigation
 function ScrollToTop() {
@@ -56,6 +58,8 @@ export function App() {
                   <Route path="/signup" element={<SignupPage />} />
                   <Route path="/about" element={<AboutPage />} />
                   <Route path="/terms" element={<TermsPage />} />
+                  <Route path="/cart" element={<CartPage />} />
+                  <Route path="/subscription" element={<SubscriptionPage />} />
                   {/* Fallback */}
                   <Route path="*" element={<ExplorePage />} />
                 </Routes>

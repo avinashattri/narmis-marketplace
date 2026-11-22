@@ -103,6 +103,7 @@ export interface Listing {
   
   // Purchase
   purchase_price?: number;
+  quantity_available?: number;
   
   images: string[];
   location: string;
@@ -161,6 +162,9 @@ export interface PurchaseTransaction {
   seller_id: string;
   seller?: UserProfile;
   amount: number;
+  quantity?: number;
+  unit_price?: number;
+  checkout_group_id?: string;
   status: 'payment_submitted' | 'pending' | 'completed' | 'refunded' | 'cancelled';
   payment_method: string;
   payment_reference?: string;
@@ -169,6 +173,54 @@ export interface PurchaseTransaction {
   payment_verification_status?: 'Awaiting Payment' | 'Payment Submitted' | 'Verified' | 'Cancelled';
   receipt_number: string;
   shipping_address: string;
+  created_at: string;
+}
+
+export interface CartItem {
+  id: string;
+  user_id: string;
+  listing_id: string;
+  listing?: Listing;
+  quantity: number;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface TradeAccessStatus {
+  free_trials_total: number;
+  free_trials_used: number;
+  free_trials_remaining: number;
+  subscription_active: boolean;
+  subscription_expires_at: string | null;
+  can_trade: boolean;
+  annual_price_inr: number;
+}
+
+export type SubscriptionVerificationStatus =
+  | 'Pending Verification'
+  | 'Approved'
+  | 'Rejected';
+
+export interface SubscriptionPayment {
+  id: string;
+  user_id: string;
+  user_name?: string;
+  user_email?: string;
+  college_name?: string;
+  plan: string;
+  amount_paise: number;
+  currency: string;
+  provider: string;
+  provider_order_id: string;
+  provider_payment_id?: string | null;
+  upi_reference?: string | null;
+  status: 'created' | 'pending_verification' | 'paid' | 'approved' | 'rejected' | 'failed' | 'refunded';
+  verification_status: SubscriptionVerificationStatus;
+  rejection_reason?: string | null;
+  period_start?: string | null;
+  period_end?: string | null;
+  paid_at?: string | null;
+  reviewed_at?: string | null;
   created_at: string;
 }
 

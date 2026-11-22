@@ -13,6 +13,7 @@ import {
   LogOut,
   Sparkles,
   ShoppingBag,
+  ShoppingCart,
   Repeat,
   Calendar,
   Compass,
@@ -25,7 +26,7 @@ export const Navbar: React.FC = () => {
   const [isDemoGuideOpen, setIsDemoGuideOpen] = useState(false);
 
   const { user, isAuthenticated, logout } = useAuth();
-  const { conversations } = useMarketplace();
+  const { conversations, cartCount, tradeAccess } = useMarketplace();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -116,6 +117,21 @@ export const Navbar: React.FC = () => {
               <span>List Item</span>
             </Link>
 
+            {/* Shopping Cart Icon */}
+            <Link
+              to="/cart"
+              className="relative p-2 rounded-full text-narmis-cream hover:text-narmis-parchment hover:bg-narmis-surface transition-colors"
+              title="Purchase Cart"
+              aria-label="Purchase Cart"
+            >
+              <ShoppingCart className="w-5 h-5" />
+              {cartCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-500 text-narmis-charcoal text-[10px] font-black flex items-center justify-center ring-2 ring-narmis-bg">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+
             {isAuthenticated && user ? (
               <div className="flex items-center space-x-3">
                 {/* Messages Icon */}
@@ -173,6 +189,34 @@ export const Navbar: React.FC = () => {
                           <span>Public Profile</span>
                         </Link>
                         <Link
+                          to="/cart"
+                          className="flex items-center justify-between px-4 py-2 text-xs hover:bg-narmis-mountain/50 transition-colors"
+                        >
+                          <span className="flex items-center gap-2.5">
+                            <ShoppingCart className="w-4 h-4 text-narmis-gold" />
+                            <span>Purchase Cart</span>
+                          </span>
+                          {cartCount > 0 && (
+                            <span className="px-1.5 py-0.5 rounded-full bg-emerald-500 text-[10px] font-bold text-narmis-charcoal">
+                              {cartCount}
+                            </span>
+                          )}
+                        </Link>
+                        <Link
+                          to="/subscription"
+                          className="flex items-center justify-between px-4 py-2 text-xs hover:bg-narmis-mountain/50 transition-colors"
+                        >
+                          <span className="flex items-center gap-2.5">
+                            <Repeat className="w-4 h-4 text-narmis-gold" />
+                            <span>Trade Pass & Trials</span>
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded-full bg-amber-950 border border-amber-500/40 text-[10px] font-bold text-amber-300">
+                            {tradeAccess.subscription_active
+                              ? 'Active'
+                              : `${tradeAccess.free_trials_remaining}/3`}
+                          </span>
+                        </Link>
+                        <Link
                           to="/messages"
                           className="flex items-center justify-between px-4 py-2 text-xs hover:bg-narmis-mountain/50 transition-colors"
                         >
@@ -224,6 +268,18 @@ export const Navbar: React.FC = () => {
 
           {/* Mobile Hamburger Toggle */}
           <div className="flex items-center gap-2 lg:hidden">
+            <Link
+              to="/cart"
+              className="relative p-2 rounded-full text-narmis-cream hover:bg-narmis-surface"
+              title="Purchase Cart"
+            >
+              <ShoppingCart className="w-5 h-5" />
+              {cartCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-emerald-500 text-narmis-charcoal text-[10px] font-black flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
             <Link
               to="/create-listing"
               className="p-2 rounded-full bg-narmis-gold text-narmis-charcoal"
@@ -281,6 +337,34 @@ export const Navbar: React.FC = () => {
             >
               <ShoppingBag className="w-4 h-4 text-narmis-gold" />
               <span>Purchase</span>
+            </Link>
+            <Link
+              to="/cart"
+              className="flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium text-narmis-cream hover:bg-narmis-mountain/50"
+            >
+              <span className="flex items-center gap-3">
+                <ShoppingCart className="w-4 h-4 text-narmis-gold" />
+                <span>Purchase Cart</span>
+              </span>
+              {cartCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-xs font-bold text-narmis-charcoal">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+            <Link
+              to="/subscription"
+              className="flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium text-narmis-cream hover:bg-narmis-mountain/50"
+            >
+              <span className="flex items-center gap-3">
+                <Repeat className="w-4 h-4 text-narmis-gold" />
+                <span>Trade Pass & Free Trials</span>
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-amber-950 border border-amber-500/40 text-xs font-bold text-amber-300">
+                {tradeAccess.subscription_active
+                  ? 'Active'
+                  : `${tradeAccess.free_trials_remaining}/3 left`}
+              </span>
             </Link>
             <Link
               to="/about"

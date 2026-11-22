@@ -8,6 +8,9 @@ import {
   Message,
   CommunityRequest,
   Review,
+  CartItem,
+  TradeAccessStatus,
+  SubscriptionPayment,
 } from '../types';
 import {
   INITIAL_LISTINGS,
@@ -22,10 +25,27 @@ import {
 } from '../services/mockData';
 import { useAuth } from './AuthContext';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
-import { DEFAULT_CAMPUS_LOCATION } from '../services/locationDefaults';
+import { DEFAULT_CAMPUS_LOCATION, DEFAULT_COLLEGE_NAME } from '../services/locationDefaults';
+
+const isUuid = (id: unknown): id is string =>
+  typeof id === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+const DEFAULT_TRADE_ACCESS: TradeAccessStatus = {
+  free_trials_total: 3,
+  free_trials_used: 0,
+  free_trials_remaining: 3,
+  subscription_active: false,
+  subscription_expires_at: null,
+  can_trade: true,
+  annual_price_inr: 299,
+};
 
 interface MarketplaceContextType {
   listings: Listing[];
+  isLoadingListings: boolean;
+  refreshListings: () => Promise<void>;
+  fetchListingById: (id: string) => Promise<Listing | null>;
   savedIds: string[];
   rentalRequests: RentalRequest[];
   tradeOffers: TradeOffer[];
@@ -51,7 +71,7 @@ interface MarketplaceContextType {
   addReview: (review: Omit<Review, 'id' | 'created_at'>) => Promise<Review>;
   hasUserCompletedTransaction: (listingId: string, userId: string) => boolean;
 
-  // Actions
+  // Listing Actions
   addListing: (
     listing: Omit<Listing, 'id' | 'user_id' | 'created_at' | 'view_count' | 'status'>
   ) => Promise<Listing>;
@@ -67,13 +87,39 @@ interface MarketplaceContextType {
   ) => Promise<RentalRequest>;
   updateRentalStatus: (id: string, status: RentalRequest['status']) => Promise<void>;
 
-  // Trade actions
+  // Trade actions & Trade Subscription system (UPI QR + Admin Verification)
+  tradeAccess: TradeAccessStatus;
+  isLoadingTradeAccess: boolean;
+  isAdmin: boolean;
+  subscriptionPayments: SubscriptionPayment[];
+  adminSubscriptionPayments: SubscriptionPayment[];
+  refreshTradeAccess: () => Promise<TradeAccessStatus>;
+  refreshAdminSubscriptionPayments: (statusFilter?: string) => Promise<void>;
+  reviewSubscriptionPayment: (params: {
+    paymentId: string;
+    decision: 'approve' | 'reject';
+    rejectionReason?: string;
+  }) => Promise<void>;
   createTradeOffer: (
     offer: Omit<TradeOffer, 'id' | 'requester_id' | 'status' | 'created_at'>
   ) => Promise<TradeOffer>;
   updateTradeStatus: (id: string, status: TradeOffer['status']) => Promise<void>;
+  recordSubscriptionPaymentSubmission: (params: {
+    paymentReference: string;
+  }) => Promise<SubscriptionPayment>;
 
-  // Purchase action
+  // Purchase & Persistent Shopping Cart actions
+  cartItems: CartItem[];
+  cartCount: number;
+  cartSubtotal: number;
+  addToCart: (listingId: string, quantity?: number) => Promise<void>;
+  removeFromCart: (listingId: string) => Promise<void>;
+  updateCartQuantity: (listingId: string, quantity: number) => Promise<void>;
+  clearCart: () => Promise<void>;
+  checkoutCart: (params: {
+    address: string;
+    paymentReference?: string;
+  }) => Promise<PurchaseTransaction[]>;
   submitPurchasePayment: (params: {
     listingId: string;
     address: string;
@@ -96,40 +142,24 @@ interface MarketplaceContextType {
 
 const MarketplaceContext = createContext<MarketplaceContextType | undefined>(undefined);
 
-const DATA_VERSION = 'v9';
+const DATA_VERSION = 'v10';
 
 export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
 
-  if (typeof window !== 'undefined') {
-    const isFreshVersion = localStorage.getItem('narmis_version') === DATA_VERSION;
-    if (!isFreshVersion) {
-      localStorage.setItem('narmis_version', DATA_VERSION);
-      // If cached listings was accidentally emptied during migration, reset to full catalog
-      try {
-        const rawListings = localStorage.getItem('narmis_listings');
-        const parsed = rawListings ? JSON.parse(rawListings) : null;
-        if (!Array.isArray(parsed) || parsed.length === 0) {
-          localStorage.removeItem('narmis_listings');
-        }
-      } catch {
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isFreshVersion = localStorage.getItem('narmis_version') === DATA_VERSION;
+      if (!isFreshVersion) {
+        localStorage.setItem('narmis_version', DATA_VERSION);
+        // Remove stale localStorage listing caches so Supabase is always authoritative for user listings
         localStorage.removeItem('narmis_listings');
       }
     }
-  }
+  }, []);
 
-  const [listings, setListings] = useState<Listing[]>(() => {
-    try {
-      const cached = localStorage.getItem('narmis_listings');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {
-      // fall through
-    }
-    return INITIAL_LISTINGS;
-  });
+  const [listings, setListings] = useState<Listing[]>(INITIAL_LISTINGS);
+  const [isLoadingListings, setIsLoadingListings] = useState<boolean>(false);
 
   const [savedIds, setSavedIds] = useState<string[]>(() => {
     try {
@@ -140,100 +170,34 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   });
 
-  const [rentalRequests, setRentalRequests] = useState<RentalRequest[]>(() => {
-    try {
-      const cached = localStorage.getItem('narmis_rental_requests');
-      return cached ? JSON.parse(cached) : INITIAL_RENTAL_REQUESTS;
-    } catch {
-      return INITIAL_RENTAL_REQUESTS;
-    }
-  });
-
-  const [tradeOffers, setTradeOffers] = useState<TradeOffer[]>(() => {
-    try {
-      const cached = localStorage.getItem('narmis_trade_offers');
-      return cached ? JSON.parse(cached) : INITIAL_TRADE_OFFERS;
-    } catch {
-      return INITIAL_TRADE_OFFERS;
-    }
-  });
-
-  const [purchases, setPurchases] = useState<PurchaseTransaction[]>(() => {
-    try {
-      const cached = localStorage.getItem('narmis_purchases');
-      return cached ? JSON.parse(cached) : INITIAL_PURCHASES;
-    } catch {
-      return INITIAL_PURCHASES;
-    }
-  });
-
-  const [conversations, setConversations] = useState<Conversation[]>(() => {
-    try {
-      const cached = localStorage.getItem('narmis_conversations');
-      return cached ? JSON.parse(cached) : INITIAL_CONVERSATIONS;
-    } catch {
-      return INITIAL_CONVERSATIONS;
-    }
-  });
-
-  const [messages, setMessages] = useState<Record<string, Message[]>>(() => {
-    try {
-      const cached = localStorage.getItem('narmis_messages');
-      return cached ? JSON.parse(cached) : INITIAL_MESSAGES;
-    } catch {
-      return INITIAL_MESSAGES;
-    }
-  });
-
-  const [communityRequests, setCommunityRequests] = useState<CommunityRequest[]>(() => {
-    try {
-      const cached = localStorage.getItem('narmis_community_requests');
-      return cached ? JSON.parse(cached) : INITIAL_COMMUNITY_REQUESTS;
-    } catch {
-      return INITIAL_COMMUNITY_REQUESTS;
-    }
-  });
-
-  const [reviews, setReviews] = useState<Review[]>(() => {
-    try {
-      const cached = localStorage.getItem('narmis_reviews');
-      return cached ? JSON.parse(cached) : INITIAL_REVIEWS;
-    } catch {
-      return INITIAL_REVIEWS;
-    }
-  });
-
+  const [rentalRequests, setRentalRequests] = useState<RentalRequest[]>(INITIAL_RENTAL_REQUESTS);
+  const [tradeOffers, setTradeOffers] = useState<TradeOffer[]>(INITIAL_TRADE_OFFERS);
+  const [purchases, setPurchases] = useState<PurchaseTransaction[]>(INITIAL_PURCHASES);
+  const [conversations, setConversations] = useState<Conversation[]>(INITIAL_CONVERSATIONS);
+  const [messages, setMessages] = useState<Record<string, Message[]>>(INITIAL_MESSAGES);
+  const [communityRequests, setCommunityRequests] = useState<CommunityRequest[]>(
+    INITIAL_COMMUNITY_REQUESTS
+  );
+  const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
   const [activeConversationId, setActiveConversationId] = useState<string | null>('conv-1');
 
-  useEffect(() => {
-    localStorage.setItem('narmis_listings', JSON.stringify(listings));
-  }, [listings]);
-  useEffect(() => {
-    localStorage.setItem('narmis_reviews', JSON.stringify(reviews));
-  }, [reviews]);
-  useEffect(() => {
-    localStorage.setItem('narmis_community_requests', JSON.stringify(communityRequests));
-  }, [communityRequests]);
+  // Trade Subscription & Trial State (Server-Authoritative)
+  const [tradeAccess, setTradeAccess] = useState<TradeAccessStatus>(DEFAULT_TRADE_ACCESS);
+  const [isLoadingTradeAccess, setIsLoadingTradeAccess] = useState<boolean>(false);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [subscriptionPayments, setSubscriptionPayments] = useState<SubscriptionPayment[]>([]);
+  const [adminSubscriptionPayments, setAdminSubscriptionPayments] = useState<SubscriptionPayment[]>(
+    []
+  );
+
+  // Persistent Shopping Cart State
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+
   useEffect(() => {
     localStorage.setItem('narmis_saved_ids', JSON.stringify(savedIds));
   }, [savedIds]);
-  useEffect(() => {
-    localStorage.setItem('narmis_rental_requests', JSON.stringify(rentalRequests));
-  }, [rentalRequests]);
-  useEffect(() => {
-    localStorage.setItem('narmis_trade_offers', JSON.stringify(tradeOffers));
-  }, [tradeOffers]);
-  useEffect(() => {
-    localStorage.setItem('narmis_purchases', JSON.stringify(purchases));
-  }, [purchases]);
-  useEffect(() => {
-    localStorage.setItem('narmis_conversations', JSON.stringify(conversations));
-  }, [conversations]);
-  useEffect(() => {
-    localStorage.setItem('narmis_messages', JSON.stringify(messages));
-  }, [messages]);
 
-  const mapDbListing = (l: any): Listing => {
+  const mapDbListing = useCallback((l: any): Listing => {
     const imgsOf = (type: 'product' | 'condition') =>
       ((l.listing_images || []) as any[])
         .filter((i) => (i.image_type || 'product') === type)
@@ -249,14 +213,16 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
             full_name: l.profiles.full_name || 'Marketplace Member',
             avatar_url:
               l.profiles.avatar_url ||
-              'https://ui-avatars.com/api/?name=Member&background=304943&color=EAD3AA',
+              `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                l.profiles.full_name || 'Member'
+              )}&background=304943&color=EAD3AA`,
             bio: l.profiles.bio,
             location: l.profiles.location || l.location,
             college_name: l.profiles.college_name,
             college_verification_status:
               l.profiles.college_verification_status || 'Not Submitted',
-            rating: l.profiles.rating || 5.0,
-            review_count: l.profiles.review_count || 0,
+            rating: Number(l.profiles.rating) || 5.0,
+            review_count: Number(l.profiles.review_count) || 0,
           }
         : undefined,
       title: l.title,
@@ -268,7 +234,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       model_name: l.model_name ?? undefined,
       product_age: l.product_age ?? undefined,
       purchase_date: l.purchase_date ?? undefined,
-      original_mrp: l.original_mrp ?? undefined,
+      original_mrp: l.original_mrp !== null && l.original_mrp !== undefined ? Number(l.original_mrp) : undefined,
       accessories_included: l.accessories_included ?? undefined,
       warranty_status: l.warranty_status ?? undefined,
       invoice_available: l.invoice_available ?? undefined,
@@ -285,26 +251,61 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       terms_accepted: l.terms_accepted,
       terms_accepted_at: l.terms_accepted_at,
       terms_version: l.terms_version,
-      rental_price: l.rental_price ?? undefined,
+      rental_price: l.rental_price !== null && l.rental_price !== undefined ? Number(l.rental_price) : undefined,
       rental_duration: l.rental_duration ?? undefined,
       availability_status: l.availability_status || 'available',
-      estimated_value: l.estimated_value ?? undefined,
+      estimated_value:
+        l.estimated_value !== null && l.estimated_value !== undefined
+          ? Number(l.estimated_value)
+          : undefined,
       trade_desired: l.trade_desired ?? undefined,
-      trade_cash_adjustment: l.trade_cash_adjustment ?? undefined,
-      purchase_price: l.purchase_price ?? undefined,
+      trade_cash_adjustment:
+        l.trade_cash_adjustment !== null && l.trade_cash_adjustment !== undefined
+          ? Number(l.trade_cash_adjustment)
+          : undefined,
+      purchase_price:
+        l.purchase_price !== null && l.purchase_price !== undefined
+          ? Number(l.purchase_price)
+          : undefined,
+      quantity_available:
+        typeof l.quantity_available === 'number' ? l.quantity_available : 1,
       images: imgsOf('product'),
       location: l.location || DEFAULT_CAMPUS_LOCATION,
-      status: l.status,
-      featured: l.featured,
-      view_count: l.view_count || 0,
+      status: l.status || 'active',
+      featured: Boolean(l.featured),
+      view_count: Number(l.view_count) || 0,
       created_at: l.created_at,
+      updated_at: l.updated_at,
     };
-  };
+  }, []);
 
-  // Sync with Supabase tables when available (never wiping existing catalog on empty/unmigrated DB)
-  const fetchSupabaseData = useCallback(async () => {
+  // Ensure the signed-in user has a row in public.profiles so FK references never fail
+  const ensureCurrentUserProfileRow = useCallback(async () => {
+    if (!isSupabaseConfigured || !supabase || !user || !session?.access_token) return;
+    try {
+      await supabase.from('profiles').upsert(
+        [
+          {
+            id: user.id,
+            full_name: user.full_name || 'Marketplace Member',
+            avatar_url: user.avatar_url,
+            bio: user.bio || 'Member of NARMIS circular community.',
+            location: user.location || DEFAULT_CAMPUS_LOCATION,
+            college_name: user.college_name || DEFAULT_COLLEGE_NAME,
+          },
+        ],
+        { onConflict: 'id', ignoreDuplicates: true }
+      );
+    } catch {
+      // ignore if trigger already created profile
+    }
+  }, [user, session?.access_token]);
+
+  // Fetch authoritative listings from Supabase (never deduplicating by title, and removing deleted DB rows)
+  const refreshListings = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) return;
     const client = supabase;
+    setIsLoadingListings(true);
 
     try {
       const { data: dbListings, error: listErr } = await client
@@ -312,49 +313,404 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         .select('*, profiles(*), listing_images(*)')
         .order('created_at', { ascending: false });
 
-      if (!listErr && dbListings && dbListings.length > 0) {
+      if (!listErr && Array.isArray(dbListings)) {
         const mapped = dbListings.map(mapDbListing);
-        setListings((prev) => {
-          const dbIds = new Set(mapped.map((m) => m.id));
-          const dbTitles = new Set(mapped.map((m) => m.title.trim().toLowerCase()));
-          const preserved = prev.filter(
-            (item) => !dbIds.has(item.id) && !dbTitles.has(item.title.trim().toLowerCase())
-          );
-          return [...mapped, ...preserved];
-        });
+        const dbIds = new Set(mapped.map((m) => m.id));
+        // Keep predefined non-UUID showcase catalog items while making Supabase 100% authoritative for all UUID listings
+        const staticShowcase = INITIAL_LISTINGS.filter(
+          (item) => !isUuid(item.id) && !dbIds.has(item.id)
+        );
+        setListings([...mapped, ...staticShowcase]);
+      } else if (listErr) {
+        console.warn('[NARMIS] Supabase listings fetch error:', listErr.code, listErr.message);
       }
     } catch (err) {
-      console.warn('Supabase listings sync notice:', err);
+      console.warn('[NARMIS] Supabase listings sync error:', err);
+    } finally {
+      setIsLoadingListings(false);
+    }
+  }, [mapDbListing]);
+
+  const fetchListingById = useCallback(
+    async (id: string): Promise<Listing | null> => {
+      const localMatch = listings.find((l) => l.id === id);
+      if (!isSupabaseConfigured || !supabase || !isUuid(id)) {
+        return localMatch || null;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('listings')
+          .select('*, profiles(*), listing_images(*)')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (!error && data) {
+          const mapped = mapDbListing(data);
+          setListings((prev) => {
+            const exists = prev.some((item) => item.id === mapped.id);
+            return exists
+              ? prev.map((item) => (item.id === mapped.id ? mapped : item))
+              : [mapped, ...prev];
+          });
+          return mapped;
+        }
+      } catch (err) {
+        console.warn('[NARMIS] fetchListingById error:', err);
+      }
+      return localMatch || null;
+    },
+    [listings, mapDbListing]
+  );
+
+  // Refresh server-side Trade Trial & Subscription status from Supabase
+  const refreshTradeAccess = useCallback(async (): Promise<TradeAccessStatus> => {
+    if (!isSupabaseConfigured || !supabase || !user?.id || !session?.access_token) {
+      setTradeAccess(DEFAULT_TRADE_ACCESS);
+      setSubscriptionPayments([]);
+      setAdminSubscriptionPayments([]);
+      setIsAdmin(false);
+      setIsLoadingTradeAccess(false);
+      return DEFAULT_TRADE_ACCESS;
     }
 
-    if (user?.id) {
+    const client = supabase;
+    setIsLoadingTradeAccess(true);
+    let resolvedAccess: TradeAccessStatus = DEFAULT_TRADE_ACCESS;
+    try {
+      // Check admin privilege server-side
       try {
-        const { data: savedRows, error: savedErr } = await client
-          .from('saved_listings')
-          .select('listing_id')
-          .eq('user_id', user.id);
-        if (!savedErr && savedRows && savedRows.length > 0) {
-          setSavedIds((prev) =>
-            Array.from(new Set([...prev, ...savedRows.map((s: any) => s.listing_id)]))
-          );
+        const { data: adminFlag, error: adminErr } = await client.rpc('is_current_user_admin');
+        setIsAdmin(!adminErr && Boolean(adminFlag));
+      } catch {
+        setIsAdmin(false);
+      }
+
+      // 1. Try server-side SECURITY DEFINER function get_trade_access()
+      const { data: rpcData, error: rpcErr } = await client.rpc('get_trade_access');
+      if (!rpcErr && rpcData) {
+        resolvedAccess = {
+          free_trials_total: Number(rpcData.free_trials_total ?? 3),
+          free_trials_used: Number(rpcData.free_trials_used ?? 0),
+          free_trials_remaining: Number(rpcData.free_trials_remaining ?? 3),
+          subscription_active: Boolean(rpcData.subscription_active),
+          subscription_expires_at: rpcData.subscription_expires_at || null,
+          can_trade: Boolean(rpcData.can_trade),
+          annual_price_inr: Number(rpcData.annual_price_inr ?? 299),
+        };
+        setTradeAccess(resolvedAccess);
+      } else {
+        // 2. Fallback: read trade_subscriptions & count trade_offers directly from Supabase
+        let subRow: any = null;
+        try {
+          const { data: sData } = await client
+            .from('trade_subscriptions')
+            .select('*')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          subRow = sData;
+        } catch {
+          // table may not exist yet
+        }
+
+        const { count: offerCount } = await client
+          .from('trade_offers')
+          .select('id', { count: 'exact', head: true })
+          .eq('requester_id', user.id);
+
+        const used = Math.min(
+          3,
+          Math.max(Number(subRow?.free_trials_used ?? 0), Number(offerCount ?? 0))
+        );
+        const expiresAt: string | null = subRow?.subscription_expires_at || null;
+        const isActive = Boolean(expiresAt && new Date(expiresAt).getTime() > Date.now());
+        const remaining = Math.max(0, 3 - used);
+        resolvedAccess = {
+          free_trials_total: 3,
+          free_trials_used: used,
+          free_trials_remaining: remaining,
+          subscription_active: isActive,
+          subscription_expires_at: expiresAt,
+          can_trade: isActive || remaining > 0,
+          annual_price_inr: 299,
+        };
+        setTradeAccess(resolvedAccess);
+      }
+
+      // Fetch user's subscription payment history from Supabase
+      try {
+        const { data: payRows, error: payErr } = await client
+          .from('subscription_payments')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+        if (!payErr && Array.isArray(payRows)) {
+          const normalized: SubscriptionPayment[] = payRows.map((row: any) => ({
+            ...row,
+            upi_reference: row.upi_reference || row.provider_payment_id || null,
+            verification_status:
+              row.verification_status ||
+              (row.status === 'paid' || row.status === 'approved'
+                ? 'Approved'
+                : row.status === 'rejected'
+                ? 'Rejected'
+                : 'Pending Verification'),
+          }));
+          setSubscriptionPayments(normalized);
         }
       } catch {
-        // table not migrated yet
+        // ignore if subscription_payments table not migrated yet
       }
+    } catch (err) {
+      console.warn('[NARMIS] refreshTradeAccess notice:', err);
+    } finally {
+      setIsLoadingTradeAccess(false);
     }
-  }, [user?.id]);
+
+    return resolvedAccess;
+  }, [user?.id, session?.access_token]);
+
+  const refreshAdminSubscriptionPayments = useCallback(
+    async (statusFilter?: string): Promise<void> => {
+      if (!isSupabaseConfigured || !supabase || !user?.id || !session?.access_token) {
+        setAdminSubscriptionPayments([]);
+        return;
+      }
+      const { data, error } = await supabase.rpc('admin_list_subscription_payments', {
+        p_status: statusFilter || null,
+      });
+      if (error) {
+        if (error.code === '42501' || /ADMIN_REQUIRED/i.test(error.message)) {
+          setIsAdmin(false);
+          setAdminSubscriptionPayments([]);
+          return;
+        }
+        throw new Error(error.message);
+      }
+      if (Array.isArray(data)) {
+        setAdminSubscriptionPayments(data as SubscriptionPayment[]);
+      }
+    },
+    [user?.id, session?.access_token]
+  );
+
+  const reviewSubscriptionPayment = async ({
+    paymentId,
+    decision,
+    rejectionReason,
+  }: {
+    paymentId: string;
+    decision: 'approve' | 'reject';
+    rejectionReason?: string;
+  }): Promise<void> => {
+    if (!isSupabaseConfigured || !supabase || !user?.id || !session?.access_token) {
+      throw new Error('Please sign in with an administrator account.');
+    }
+
+    const { error } = await supabase.rpc('admin_review_subscription_payment', {
+      p_payment_id: paymentId,
+      p_decision: decision,
+      p_rejection_reason: rejectionReason?.trim() || null,
+    });
+
+    if (error) {
+      throw new Error(error.message || 'Unable to review subscription payment.');
+    }
+
+    await Promise.all([refreshAdminSubscriptionPayments(), refreshTradeAccess()]);
+  };
+
+  // Fetch persistent shopping cart from Supabase for logged-in user
+  const fetchCartFromSupabase = useCallback(async () => {
+    if (!isSupabaseConfigured || !supabase || !user?.id || !session?.access_token) {
+      setCartItems([]);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('cart_items')
+        .select('*, listings(*, profiles(*), listing_images(*))')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        const mapped: CartItem[] = data.map((row: any) => ({
+          id: row.id,
+          user_id: row.user_id,
+          listing_id: row.listing_id,
+          listing: row.listings ? mapDbListing(row.listings) : undefined,
+          quantity: Number(row.quantity) || 1,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+        }));
+        setCartItems(mapped);
+      }
+    } catch (err) {
+      console.warn('[NARMIS] fetchCartFromSupabase notice:', err);
+    }
+  }, [user?.id, session?.access_token, mapDbListing]);
+
+  // Sync user-scoped data (saved items, rentals, trades, purchases, conversations, cart, trade access)
+  const fetchUserScopedData = useCallback(async () => {
+    if (!isSupabaseConfigured || !supabase || !user?.id || !session?.access_token) return;
+    const client = supabase;
+
+    await ensureCurrentUserProfileRow();
+
+    try {
+      const { data: savedRows, error: savedErr } = await client
+        .from('saved_listings')
+        .select('listing_id')
+        .eq('user_id', user.id);
+      if (!savedErr && Array.isArray(savedRows)) {
+        setSavedIds(savedRows.map((s: any) => s.listing_id));
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      const { data: dbTrades, error: tradeErr } = await client
+        .from('trade_offers')
+        .select('*, listings(*)')
+        .or(`requester_id.eq.${user.id},owner_id.eq.${user.id}`)
+        .order('created_at', { ascending: false });
+      if (!tradeErr && Array.isArray(dbTrades) && dbTrades.length > 0) {
+        const mappedTrades: TradeOffer[] = dbTrades.map((t: any) => ({
+          id: t.id,
+          listing_id: t.listing_id,
+          listing: t.listings ? mapDbListing(t.listings) : undefined,
+          requester_id: t.requester_id,
+          owner_id: t.owner_id,
+          offered_item_title: t.offered_item_title,
+          offered_item_description: t.offered_item_description,
+          offered_item_image: t.offered_item_image || undefined,
+          offered_item_value: Number(t.offered_item_value) || 0,
+          cash_adjustment: Number(t.cash_adjustment) || 0,
+          status: t.status,
+          negotiation_notes: t.negotiation_notes || undefined,
+          terms_accepted: t.terms_accepted,
+          terms_accepted_at: t.terms_accepted_at,
+          created_at: t.created_at,
+        }));
+        setTradeOffers(mappedTrades);
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      const { data: dbPurchases, error: purErr } = await client
+        .from('purchases')
+        .select('*, listings(*)')
+        .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+        .order('created_at', { ascending: false });
+      if (!purErr && Array.isArray(dbPurchases) && dbPurchases.length > 0) {
+        const mappedPurchases: PurchaseTransaction[] = dbPurchases.map((p: any) => ({
+          id: p.id,
+          listing_id: p.listing_id,
+          listing: p.listings ? mapDbListing(p.listings) : undefined,
+          buyer_id: p.buyer_id,
+          seller_id: p.seller_id,
+          amount: Number(p.amount) || 0,
+          quantity: Number(p.quantity) || 1,
+          unit_price: p.unit_price ? Number(p.unit_price) : undefined,
+          checkout_group_id: p.checkout_group_id || undefined,
+          status: p.status,
+          payment_method: p.payment_method,
+          payment_reference: p.payment_reference || undefined,
+          payment_confirmed_by_buyer: p.payment_confirmed_by_buyer,
+          payment_confirmed_at: p.payment_confirmed_at,
+          payment_verification_status: p.payment_verification_status,
+          receipt_number: p.receipt_number,
+          shipping_address: p.shipping_address,
+          created_at: p.created_at,
+        }));
+        setPurchases(mappedPurchases);
+      }
+    } catch {
+      // ignore
+    }
+
+    await Promise.all([refreshTradeAccess(), fetchCartFromSupabase()]);
+  }, [
+    user?.id,
+    session?.access_token,
+    ensureCurrentUserProfileRow,
+    mapDbListing,
+    refreshTradeAccess,
+    fetchCartFromSupabase,
+  ]);
 
   useEffect(() => {
-    fetchSupabaseData();
-  }, [fetchSupabaseData]);
+    refreshListings();
+  }, [refreshListings]);
 
-  // Realtime subscription for incoming messages when Supabase is active
+  useEffect(() => {
+    fetchUserScopedData();
+  }, [fetchUserScopedData]);
+
+  // Refetch listings & user state when window regains focus or tab becomes visible
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onFocusOrVisible = () => {
+      if (document.visibilityState === 'visible') {
+        refreshListings();
+        if (user?.id) {
+          fetchCartFromSupabase();
+          refreshTradeAccess();
+        }
+      }
+    };
+    window.addEventListener('focus', onFocusOrVisible);
+    document.addEventListener('visibilitychange', onFocusOrVisible);
+    return () => {
+      window.removeEventListener('focus', onFocusOrVisible);
+      document.removeEventListener('visibilitychange', onFocusOrVisible);
+    };
+  }, [refreshListings, fetchCartFromSupabase, refreshTradeAccess, user?.id]);
+
+  // Realtime subscription for cross-device listing changes (INSERT, UPDATE, DELETE)
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+    const client = supabase;
+
+    const listingsChannel = client
+      .channel('narmis-public-listings-sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'listings' },
+        (payload) => {
+          if (payload.eventType === 'DELETE' && payload.old?.id) {
+            const deletedId = payload.old.id as string;
+            setListings((prev) => prev.filter((item) => item.id !== deletedId));
+            return;
+          }
+          refreshListings();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'listing_images' },
+        () => {
+          refreshListings();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      client.removeChannel(listingsChannel);
+    };
+  }, [refreshListings]);
+
+  // Realtime subscription for user-specific messages & cart items
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase || !user?.id) return;
     const client = supabase;
 
-    const channel = client
-      .channel(`narmis-messages-${user.id}`)
+    const userChannel = client
+      .channel(`narmis-user-sync-${user.id}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
@@ -383,16 +739,55 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
           });
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'cart_items',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchCartFromSupabase();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'trade_subscriptions',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          refreshTradeAccess();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'subscription_payments',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          refreshTradeAccess();
+        }
+      )
       .subscribe();
 
     return () => {
-      client.removeChannel(channel);
+      client.removeChannel(userChannel);
     };
-  }, [user?.id]);
+  }, [user?.id, fetchCartFromSupabase, refreshTradeAccess]);
 
-  const getListing = (id: string): Listing | undefined => {
-    return listings.find((l) => l.id === id);
-  };
+  const getListing = useCallback(
+    (id: string): Listing | undefined => {
+      return listings.find((l) => l.id === id);
+    },
+    [listings]
+  );
 
   const getListingReviews = (listingId: string): Review[] => {
     return reviews.filter((r) => r.listing_id === listingId);
@@ -420,9 +815,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return bought || rented || traded;
   };
 
-  const addReview = async (
-    reviewData: Omit<Review, 'id' | 'created_at'>
-  ): Promise<Review> => {
+  const addReview = async (reviewData: Omit<Review, 'id' | 'created_at'>): Promise<Review> => {
     if (user && reviewData.target_user_id === user.id) {
       throw new Error('You cannot review your own listing.');
     }
@@ -441,19 +834,18 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
 
     if (isSupabaseConfigured && supabase) {
-      try {
-        await supabase.from('reviews').insert([
-          {
-            id: newRev.id,
-            reviewer_id: newRev.reviewer_id,
-            target_user_id: newRev.target_user_id,
-            listing_id: newRev.listing_id,
-            rating: newRev.rating,
-            comment: newRev.comment,
-          },
-        ]);
-      } catch (e) {
-        console.warn('Supabase review insert fallback:', e);
+      const { error } = await supabase.from('reviews').insert([
+        {
+          id: newRev.id,
+          reviewer_id: newRev.reviewer_id,
+          target_user_id: newRev.target_user_id,
+          listing_id: isUuid(newRev.listing_id) ? newRev.listing_id : null,
+          rating: newRev.rating,
+          comment: newRev.comment,
+        },
+      ]);
+      if (error) {
+        console.warn('[NARMIS] Review insert notice:', error.message);
       }
     }
 
@@ -544,16 +936,42 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
     if (rows.length) {
       const { error } = await supabase.from('listing_images').insert(rows);
-      if (error) console.warn('Supabase listing_images sync notice:', error.message);
+      if (error) {
+        console.warn('[NARMIS] listing_images insert error:', error.message);
+      }
     }
   };
 
   const addListing = async (
     data: Omit<Listing, 'id' | 'user_id' | 'created_at' | 'view_count' | 'status'>
   ): Promise<Listing> => {
-    if (!user) throw new Error('Please log in to create a listing.');
+    if (!user || !session?.access_token) {
+      throw new Error('Please log in with a valid account to create a listing.');
+    }
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Supabase is not configured.');
+    }
+
+    await ensureCurrentUserProfileRow();
 
     const newId = crypto.randomUUID();
+    const nowIso = new Date().toISOString();
+
+    const { error } = await supabase
+      .from('listings')
+      .insert([{ id: newId, user_id: user.id, ...toListingRow({ ...data, status: 'active' }) }]);
+
+    if (error) {
+      if (error.code === '42501') {
+        throw new Error(
+          'Database permission error (42501): Please run the SQL migration 20261123_01_api_grants_and_listing_sync.sql in your Supabase SQL Editor to grant API role permissions on public.listings.'
+        );
+      }
+      throw new Error(`Failed to save listing to Supabase: ${error.message}`);
+    }
+
+    await replaceListingImages(newId, data.images || [], data.condition_images || []);
+
     const newListing: Listing = {
       ...data,
       id: newId,
@@ -561,25 +979,12 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       user,
       status: 'active',
       view_count: 0,
-      created_at: new Date().toISOString(),
+      created_at: nowIso,
     };
 
-    if (isSupabaseConfigured && supabase) {
-      try {
-        const { error } = await supabase
-          .from('listings')
-          .insert([{ id: newId, user_id: user.id, ...toListingRow({ ...data, status: 'active' }) }]);
-        if (!error) {
-          await replaceListingImages(newId, data.images || [], data.condition_images || []);
-        } else {
-          console.warn('Supabase insert listing notice (saved locally):', error.message);
-        }
-      } catch (err) {
-        console.warn('Supabase insert listing fallback:', err);
-      }
-    }
-
     setListings((prev) => [newListing, ...prev]);
+    // Refresh from Supabase so server-hydrated fields & images are immediately verified
+    await refreshListings();
     return newListing;
   };
 
@@ -598,17 +1003,20 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     const { id: _i, user_id: _u, user: _usr, created_at: _c, ...safeUpdates } = updates as any;
 
-    if (isSupabaseConfigured && supabase && isOwner) {
-      try {
-        const row = toListingRow(safeUpdates);
-        if (Object.keys(row).length) {
-          await supabase.from('listings').update(row).eq('id', id).eq('user_id', user.id);
+    if (isSupabaseConfigured && supabase && isOwner && isUuid(id)) {
+      const row = toListingRow(safeUpdates);
+      if (Object.keys(row).length) {
+        const { error } = await supabase
+          .from('listings')
+          .update(row)
+          .eq('id', id)
+          .eq('user_id', user.id);
+        if (error) {
+          throw new Error(`Failed to update listing in Supabase: ${error.message}`);
         }
-        if (safeUpdates.images || safeUpdates.condition_images) {
-          await replaceListingImages(id, safeUpdates.images, safeUpdates.condition_images);
-        }
-      } catch (err) {
-        console.warn('Supabase update listing fallback:', err);
+      }
+      if (safeUpdates.images || safeUpdates.condition_images) {
+        await replaceListingImages(id, safeUpdates.images, safeUpdates.condition_images);
       }
     }
 
@@ -619,14 +1027,21 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const deleteListing = async (id: string): Promise<void> => {
     const existing = listings.find((l) => l.id === id);
-    if (!existing || !user || existing.user_id !== user.id) return;
-    if (isSupabaseConfigured && supabase) {
-      try {
-        await supabase.from('listings').delete().eq('id', id).eq('user_id', user.id);
-      } catch (err) {
-        console.warn('Supabase delete listing notice:', err);
+    if (!existing || !user || existing.user_id !== user.id) {
+      throw new Error('You can only delete your own listings.');
+    }
+
+    if (isSupabaseConfigured && supabase && isUuid(id)) {
+      const { error } = await supabase
+        .from('listings')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id);
+      if (error) {
+        throw new Error(`Failed to delete listing from Supabase: ${error.message}`);
       }
     }
+
     setListings((prev) => prev.filter((item) => item.id !== id));
   };
 
@@ -634,7 +1049,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const currentlySaved = savedIds.includes(id);
     setSavedIds((prev) => (currentlySaved ? prev.filter((i) => i !== id) : [...prev, id]));
 
-    if (isSupabaseConfigured && supabase && user?.id) {
+    if (isSupabaseConfigured && supabase && user?.id && isUuid(id)) {
       try {
         if (currentlySaved) {
           await supabase
@@ -648,13 +1063,172 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
             .insert([{ user_id: user.id, listing_id: id }]);
         }
       } catch {
-        // ignore if saved_listings table not migrated yet
+        // ignore
       }
     }
   };
 
   const isSaved = (id: string) => savedIds.includes(id);
 
+  // =========================================================================
+  // PERSISTENT SHOPPING CART ACTIONS
+  // =========================================================================
+  const resolvedCartItems = cartItems.map((ci) => ({
+    ...ci,
+    listing: ci.listing || listings.find((l) => l.id === ci.listing_id),
+  }));
+
+  const cartCount = resolvedCartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const cartSubtotal = resolvedCartItems.reduce((sum, item) => {
+    const l = item.listing;
+    if (!l || l.status !== 'active' || l.listing_type !== 'purchase') return sum;
+    return sum + (Number(l.purchase_price) || 0) * item.quantity;
+  }, 0);
+
+  const addToCart = async (listingId: string, quantity = 1): Promise<void> => {
+    if (!user || !session?.access_token) {
+      throw new Error('Please log in to add items to your cart.');
+    }
+    const target = listings.find((l) => l.id === listingId);
+    if (!target) {
+      throw new Error('This listing could not be found.');
+    }
+    if (target.status !== 'active') {
+      throw new Error('This listing is no longer available for purchase.');
+    }
+    if (target.listing_type !== 'purchase') {
+      throw new Error('Only items listed for direct purchase can be added to the cart.');
+    }
+    if (target.user_id === user.id) {
+      throw new Error('You cannot add your own listing to your purchase cart.');
+    }
+    const maxAvail = target.quantity_available ?? 1;
+    const existingItem = cartItems.find((c) => c.listing_id === listingId);
+    const nextQty = (existingItem?.quantity || 0) + quantity;
+    if (nextQty > maxAvail) {
+      throw new Error(
+        maxAvail === 1
+          ? 'This item is already in your cart (only 1 unit available).'
+          : `Only ${maxAvail} units available for this listing.`
+      );
+    }
+
+    if (isSupabaseConfigured && supabase && isUuid(listingId)) {
+      await ensureCurrentUserProfileRow();
+      const { error: rpcError } = await supabase.rpc('add_to_cart', {
+        p_listing_id: listingId,
+        p_quantity: quantity,
+      });
+
+      if (rpcError) {
+        // Fallback to direct cart_items table upsert if RPC migration has not been run yet
+        const { error: tblErr } = await supabase.from('cart_items').upsert(
+          [
+            {
+              user_id: user.id,
+              listing_id: listingId,
+              quantity: nextQty,
+            },
+          ],
+          { onConflict: 'user_id,listing_id' }
+        );
+        if (tblErr) {
+          console.warn('[NARMIS] Cart Supabase sync notice:', tblErr.message);
+        }
+      }
+    }
+
+    const nowIso = new Date().toISOString();
+    setCartItems((prev) => {
+      const idx = prev.findIndex((c) => c.listing_id === listingId);
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = {
+          ...updated[idx],
+          quantity: nextQty,
+          listing: target,
+          updated_at: nowIso,
+        };
+        return updated;
+      }
+      return [
+        {
+          id: crypto.randomUUID(),
+          user_id: user.id,
+          listing_id: listingId,
+          listing: target,
+          quantity: nextQty,
+          created_at: nowIso,
+          updated_at: nowIso,
+        },
+        ...prev,
+      ];
+    });
+  };
+
+  const removeFromCart = async (listingId: string): Promise<void> => {
+    setCartItems((prev) => prev.filter((c) => c.listing_id !== listingId));
+    if (isSupabaseConfigured && supabase && user?.id && isUuid(listingId)) {
+      try {
+        await supabase
+          .from('cart_items')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('listing_id', listingId);
+      } catch (err) {
+        console.warn('[NARMIS] removeFromCart notice:', err);
+      }
+    }
+  };
+
+  const updateCartQuantity = async (listingId: string, quantity: number): Promise<void> => {
+    if (quantity <= 0) {
+      await removeFromCart(listingId);
+      return;
+    }
+
+    const target = listings.find((l) => l.id === listingId);
+    if (!target || target.status !== 'active') {
+      throw new Error('This listing is no longer active.');
+    }
+    const maxAvail = target.quantity_available ?? 1;
+    if (quantity > maxAvail) {
+      throw new Error(`Only ${maxAvail} available for "${target.title}".`);
+    }
+
+    if (isSupabaseConfigured && supabase && user?.id && isUuid(listingId)) {
+      const { error: rpcErr } = await supabase.rpc('set_cart_quantity', {
+        p_listing_id: listingId,
+        p_quantity: quantity,
+      });
+      if (rpcErr) {
+        await supabase
+          .from('cart_items')
+          .update({ quantity })
+          .eq('user_id', user.id)
+          .eq('listing_id', listingId);
+      }
+    }
+
+    setCartItems((prev) =>
+      prev.map((c) => (c.listing_id === listingId ? { ...c, quantity } : c))
+    );
+  };
+
+  const clearCart = async (): Promise<void> => {
+    setCartItems([]);
+    if (isSupabaseConfigured && supabase && user?.id) {
+      try {
+        await supabase.from('cart_items').delete().eq('user_id', user.id);
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  // =========================================================================
+  // MESSAGING & CONVERSATIONS
+  // =========================================================================
   const startOrGetConversation = async (
     listingId: string,
     targetUserId: string,
@@ -685,12 +1259,12 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const resolvedSubject =
       subject || (targetListing ? `Regarding ${targetListing.title}` : 'Inquiry');
 
-    if (isSupabaseConfigured && supabase && user?.id) {
+    if (isSupabaseConfigured && supabase && user?.id && isUuid(targetUserId)) {
       try {
         await supabase.from('conversations').insert([
           {
             id: newConvId,
-            listing_id: listingId && /^[0-9a-f-]{36}$/i.test(listingId) ? listingId : null,
+            listing_id: isUuid(listingId) ? listingId : null,
             participant1_id: user.id,
             participant2_id: targetUserId,
             subject: resolvedSubject,
@@ -699,7 +1273,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
           },
         ]);
       } catch {
-        // ignore if conversations table not migrated or non-UUID demo profile
+        // ignore
       }
     }
 
@@ -731,12 +1305,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const newMsgId = crypto.randomUUID();
     const nowIso = new Date().toISOString();
 
-    if (
-      isSupabaseConfigured &&
-      supabase &&
-      user?.id &&
-      /^[0-9a-f-]{36}$/i.test(conversationId)
-    ) {
+    if (isSupabaseConfigured && supabase && user?.id && isUuid(conversationId)) {
       try {
         await supabase.from('messages').insert([
           {
@@ -750,7 +1319,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
           },
         ]);
       } catch {
-        // ignore if messages table not migrated yet
+        // ignore
       }
     }
 
@@ -784,38 +1353,44 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     );
   };
 
+  // =========================================================================
+  // RENTAL REQUESTS
+  // =========================================================================
   const createRentalRequest = async (
     reqData: Omit<RentalRequest, 'id' | 'renter_id' | 'status' | 'created_at'>
   ): Promise<RentalRequest> => {
+    if (!user || !session?.access_token) {
+      throw new Error('Please log in to request a rental.');
+    }
     const newId = crypto.randomUUID();
     const nowIso = new Date().toISOString();
 
-    if (isSupabaseConfigured && supabase && user?.id) {
-      try {
-        await supabase.from('rental_requests').insert([
-          {
-            id: newId,
-            listing_id: reqData.listing_id,
-            renter_id: user.id,
-            owner_id: reqData.owner_id,
-            start_date: reqData.start_date,
-            end_date: reqData.end_date,
-            duration_type: reqData.duration_type,
-            total_amount: reqData.total_amount,
-            status: 'pending',
-            message: reqData.message || '',
-          },
-        ]);
-      } catch {
-        // fallback to local persistence if table not migrated yet
+    if (isSupabaseConfigured && supabase && isUuid(reqData.listing_id)) {
+      await ensureCurrentUserProfileRow();
+      const { error } = await supabase.from('rental_requests').insert([
+        {
+          id: newId,
+          listing_id: reqData.listing_id,
+          renter_id: user.id,
+          owner_id: reqData.owner_id,
+          start_date: reqData.start_date,
+          end_date: reqData.end_date,
+          duration_type: reqData.duration_type,
+          total_amount: reqData.total_amount,
+          status: 'pending',
+          message: reqData.message || '',
+        },
+      ]);
+      if (error) {
+        console.warn('[NARMIS] Rental request Supabase notice:', error.message);
       }
     }
 
     const newReq: RentalRequest = {
       ...reqData,
       id: newId,
-      renter_id: user?.id || 'guest',
-      renter: user || undefined,
+      renter_id: user.id,
+      renter: user,
       status: 'pending',
       created_at: nowIso,
     };
@@ -847,11 +1422,11 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     id: string,
     status: RentalRequest['status']
   ): Promise<void> => {
-    if (isSupabaseConfigured && supabase && /^[0-9a-f-]{36}$/i.test(id)) {
+    if (isSupabaseConfigured && supabase && isUuid(id)) {
       try {
         await supabase.from('rental_requests').update({ status }).eq('id', id);
       } catch {
-        // ignore if not in remote table
+        // ignore
       }
     }
 
@@ -904,44 +1479,112 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
+  // =========================================================================
+  // TRADE OFFERS & TRADE SUBSCRIPTION SYSTEM
+  // =========================================================================
   const createTradeOffer = async (
     offerData: Omit<TradeOffer, 'id' | 'requester_id' | 'status' | 'created_at'>
   ): Promise<TradeOffer> => {
-    const newId = crypto.randomUUID();
+    if (!user || !session?.access_token) {
+      throw new Error('Please log in to propose a trade.');
+    }
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Supabase is not configured.');
+    }
+
+    await ensureCurrentUserProfileRow();
+
+    // Check current server-side trade allowance before proceeding
+    const currentAccess = await refreshTradeAccess();
+    if (!currentAccess.can_trade) {
+      throw new Error(
+        'TRADE_SUBSCRIPTION_REQUIRED: You have used all 3 free trade trials. Upgrade to the NARMIS Annual Trade Pass (₹299/year) to continue proposing trades.'
+      );
+    }
+
+    let newId: string = crypto.randomUUID();
     const nowIso = new Date().toISOString();
 
-    if (isSupabaseConfigured && supabase && user?.id) {
-      try {
-        await supabase.from('trade_offers').insert([
-          {
-            id: newId,
-            listing_id: offerData.listing_id,
-            requester_id: user.id,
-            owner_id: offerData.owner_id,
-            offered_item_title: offerData.offered_item_title,
-            offered_item_description: offerData.offered_item_description,
-            offered_item_image: offerData.offered_item_image || null,
-            offered_item_value: offerData.offered_item_value,
-            cash_adjustment: offerData.cash_adjustment || 0,
-            status: 'pending',
-            negotiation_notes: offerData.negotiation_notes || null,
-          },
-        ]);
-      } catch {
-        // fallback to local persistence if table not migrated yet
+    if (isUuid(offerData.listing_id)) {
+      // 1. Primary path: atomic server-side RPC create_trade_offer()
+      const { data: rpcOffer, error: rpcErr } = await supabase.rpc('create_trade_offer', {
+        p_listing_id: offerData.listing_id,
+        p_offered_item_title: offerData.offered_item_title,
+        p_offered_item_description: offerData.offered_item_description,
+        p_offered_item_image: offerData.offered_item_image || null,
+        p_offered_item_value: offerData.offered_item_value,
+        p_cash_adjustment: offerData.cash_adjustment || 0,
+        p_negotiation_notes: offerData.negotiation_notes || null,
+        p_terms_accepted: true,
+      });
+
+      if (rpcErr) {
+        if (/TRADE_SUBSCRIPTION_REQUIRED/i.test(rpcErr.message)) {
+          await refreshTradeAccess();
+          throw new Error(
+            'TRADE_SUBSCRIPTION_REQUIRED: You have used all 3 free trade trials. An annual subscription (₹299/year) is required.'
+          );
+        }
+        // If the RPC doesn't exist yet (PGRST202), verify trial count on trade_offers and insert
+        if (rpcErr.code === 'PGRST202' || /could not find the function/i.test(rpcErr.message)) {
+          const { count } = await supabase
+            .from('trade_offers')
+            .select('id', { count: 'exact', head: true })
+            .eq('requester_id', user.id);
+          if ((count ?? 0) >= 3 && !currentAccess.subscription_active) {
+            throw new Error(
+              'TRADE_SUBSCRIPTION_REQUIRED: You have used all 3 free trade trials. An annual subscription (₹299/year) is required.'
+            );
+          }
+          const { error: insErr } = await supabase.from('trade_offers').insert([
+            {
+              id: newId,
+              listing_id: offerData.listing_id,
+              requester_id: user.id,
+              owner_id: offerData.owner_id,
+              offered_item_title: offerData.offered_item_title,
+              offered_item_description: offerData.offered_item_description,
+              offered_item_image: offerData.offered_item_image || null,
+              offered_item_value: offerData.offered_item_value,
+              cash_adjustment: offerData.cash_adjustment || 0,
+              status: 'pending',
+              negotiation_notes: offerData.negotiation_notes || null,
+            },
+          ]);
+          if (insErr) {
+            throw new Error(`Failed to submit trade offer: ${insErr.message}`);
+          }
+        } else {
+          throw new Error(rpcErr.message);
+        }
+      } else if (rpcOffer?.id) {
+        newId = rpcOffer.id;
+      }
+    } else {
+      // Static showcase item trade offer: still enforce server-side trial count for this user
+      const { count } = await supabase
+        .from('trade_offers')
+        .select('id', { count: 'exact', head: true })
+        .eq('requester_id', user.id);
+      const usedCount = Math.max(currentAccess.free_trials_used, count ?? 0);
+      if (usedCount >= 3 && !currentAccess.subscription_active) {
+        throw new Error(
+          'TRADE_SUBSCRIPTION_REQUIRED: You have used all 3 free trade trials. An annual subscription (₹299/year) is required.'
+        );
       }
     }
 
     const newOffer: TradeOffer = {
       ...offerData,
       id: newId,
-      requester_id: user?.id || 'guest',
-      requester: user || undefined,
+      requester_id: user.id,
+      requester: user,
       status: 'pending',
       created_at: nowIso,
     };
 
     setTradeOffers((prev) => [newOffer, ...prev]);
+    await refreshTradeAccess();
 
     const convId = await startOrGetConversation(
       offerData.listing_id,
@@ -975,7 +1618,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     id: string,
     status: TradeOffer['status']
   ): Promise<void> => {
-    if (isSupabaseConfigured && supabase && /^[0-9a-f-]{36}$/i.test(id)) {
+    if (isSupabaseConfigured && supabase && isUuid(id)) {
       try {
         await supabase.from('trade_offers').update({ status }).eq('id', id);
       } catch {
@@ -1032,6 +1675,248 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
+  const recordSubscriptionPaymentSubmission = async ({
+    paymentReference,
+  }: {
+    paymentReference: string;
+  }): Promise<SubscriptionPayment> => {
+    if (!user || !session?.access_token) {
+      throw new Error('Please log in to submit a subscription payment.');
+    }
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Supabase is not configured.');
+    }
+
+    const cleanRef = paymentReference.trim();
+    if (!cleanRef || cleanRef.length < 6) {
+      throw new Error('Please enter a valid UPI transaction reference / UTR (at least 6 characters).');
+    }
+
+    await ensureCurrentUserProfileRow();
+
+    const { data, error } = await supabase.rpc('submit_trade_subscription_payment', {
+      p_upi_reference: cleanRef,
+    });
+
+    if (error) {
+      if (error.code === 'PGRST202' || /could not find the function/i.test(error.message)) {
+        throw new Error(
+          'Subscription payment database function is not installed yet. Please run migration 20261123_04_upi_trade_pass_admin_verification.sql in Supabase SQL Editor.'
+        );
+      }
+      throw new Error(error.message || 'Unable to submit UPI transaction reference.');
+    }
+
+    const created: SubscriptionPayment = {
+      ...(data as any),
+      upi_reference: (data as any).upi_reference || cleanRef,
+      verification_status: (data as any).verification_status || 'Pending Verification',
+    };
+
+    await refreshTradeAccess();
+    return created;
+  };
+
+  // =========================================================================
+  // PURCHASE & CART CHECKOUT
+  // =========================================================================
+  const checkoutCart = async ({
+    address,
+    paymentReference,
+  }: {
+    address: string;
+    paymentReference?: string;
+  }): Promise<PurchaseTransaction[]> => {
+    if (!user || !session?.access_token) {
+      throw new Error('Please log in to complete checkout.');
+    }
+    if (!address || address.trim().length < 3) {
+      throw new Error('Please provide a valid delivery or campus handover address.');
+    }
+
+    const validItems = resolvedCartItems.filter((ci) => {
+      const l = ci.listing;
+      return (
+        l &&
+        l.status === 'active' &&
+        l.listing_type === 'purchase' &&
+        l.user_id !== user.id &&
+        ci.quantity >= 1 &&
+        ci.quantity <= (l.quantity_available ?? 1)
+      );
+    });
+
+    if (validItems.length === 0) {
+      throw new Error(
+        'Your cart has no active, available purchase items. Please remove any unavailable items and try again.'
+      );
+    }
+
+    const cleanAddress = address.trim();
+    const cleanRef = paymentReference?.trim() || undefined;
+    const nowIso = new Date().toISOString();
+    const createdTransactions: PurchaseTransaction[] = [];
+
+    if (isSupabaseConfigured && supabase) {
+      await ensureCurrentUserProfileRow();
+
+      const uuidItems = validItems.filter((vi) => isUuid(vi.listing_id));
+      if (uuidItems.length > 0) {
+        const rpcPayload = uuidItems.map((vi) => ({
+          listing_id: vi.listing_id,
+          quantity: vi.quantity,
+        }));
+
+        const { data: rpcPurchases, error: rpcErr } = await supabase.rpc('checkout_purchase', {
+          p_items: rpcPayload,
+          p_address: cleanAddress,
+          p_payment_reference: cleanRef || null,
+          p_clear_cart: true,
+        });
+
+        if (!rpcErr && Array.isArray(rpcPurchases)) {
+          for (const row of rpcPurchases) {
+            const matchedListing = listings.find((l) => l.id === row.listing_id);
+            createdTransactions.push({
+              id: row.id,
+              listing_id: row.listing_id,
+              listing: matchedListing,
+              buyer_id: user.id,
+              buyer: user,
+              seller_id: row.seller_id,
+              seller: matchedListing?.user,
+              amount: Number(row.amount) || 0,
+              quantity: Number(row.quantity) || 1,
+              unit_price: row.unit_price ? Number(row.unit_price) : undefined,
+              checkout_group_id: row.checkout_group_id,
+              status: 'payment_submitted',
+              payment_method: 'UPI QR Payment',
+              payment_reference: cleanRef,
+              payment_confirmed_by_buyer: true,
+              payment_confirmed_at: nowIso,
+              payment_verification_status: 'Payment Submitted',
+              receipt_number: row.receipt_number,
+              shipping_address: cleanAddress,
+              created_at: row.created_at || nowIso,
+            });
+          }
+        } else if (rpcErr && rpcErr.code !== 'PGRST202') {
+          throw new Error(rpcErr.message);
+        }
+      }
+    }
+
+    // Handle any remaining items (or when checkout_purchase RPC hasn't been executed yet)
+    const processedListingIds = new Set(createdTransactions.map((t) => t.listing_id));
+    for (const item of validItems) {
+      if (processedListingIds.has(item.listing_id)) continue;
+      const targetListing = item.listing!;
+      const receiptNumber = 'NRM-' + Math.floor(100000 + Math.random() * 900000);
+      const unitPrice = Number(targetListing.purchase_price) || 0;
+      const lineAmount = unitPrice * item.quantity;
+
+      const tx: PurchaseTransaction = {
+        id: crypto.randomUUID(),
+        listing_id: targetListing.id,
+        listing: targetListing,
+        buyer_id: user.id,
+        buyer: user,
+        seller_id: targetListing.user_id,
+        seller: targetListing.user,
+        amount: lineAmount,
+        quantity: item.quantity,
+        unit_price: unitPrice,
+        status: 'payment_submitted',
+        payment_method: 'UPI QR Payment',
+        payment_reference: cleanRef,
+        payment_confirmed_by_buyer: true,
+        payment_confirmed_at: nowIso,
+        payment_verification_status: 'Payment Submitted',
+        receipt_number: receiptNumber,
+        shipping_address: cleanAddress,
+        created_at: nowIso,
+      };
+
+      if (isSupabaseConfigured && supabase && isUuid(targetListing.id)) {
+        try {
+          await supabase.from('purchases').insert([
+            {
+              id: tx.id,
+              listing_id: targetListing.id,
+              buyer_id: user.id,
+              seller_id: targetListing.user_id,
+              amount: lineAmount,
+              status: 'payment_submitted',
+              payment_method: 'UPI_QR',
+              payment_reference: cleanRef || null,
+              payment_confirmed_by_buyer: true,
+              payment_confirmed_at: nowIso,
+              payment_verification_status: 'Payment Submitted',
+              receipt_number: receiptNumber,
+              shipping_address: cleanAddress,
+            },
+          ]);
+        } catch {
+          // ignore if direct insert is revoked in favor of RPC
+        }
+      }
+
+      createdTransactions.push(tx);
+    }
+
+    // Update local state & notify sellers
+    const purchasedIds = new Set(createdTransactions.map((t) => t.listing_id));
+    setPurchases((prev) => [...createdTransactions, ...prev]);
+    setListings((prev) =>
+      prev.map((l) => (purchasedIds.has(l.id) ? { ...l, status: 'pending' } : l))
+    );
+    setCartItems((prev) => prev.filter((c) => !purchasedIds.has(c.listing_id)));
+
+    if (isSupabaseConfigured && supabase && user?.id) {
+      for (const lid of purchasedIds) {
+        if (isUuid(lid)) {
+          try {
+            await supabase
+              .from('cart_items')
+              .delete()
+              .eq('user_id', user.id)
+              .eq('listing_id', lid);
+          } catch {
+            // ignore
+          }
+        }
+      }
+    }
+
+    for (const tx of createdTransactions) {
+      if (!tx.listing) continue;
+      const convId = await startOrGetConversation(
+        tx.listing_id,
+        tx.seller_id,
+        `Payment Submitted: ${tx.listing.title}`
+      );
+      const refSuffix = cleanRef ? ` · UPI Ref: ${cleanRef}` : '';
+      await sendMessage(
+        convId,
+        `Payment confirmation submitted (Ref: ${tx.receipt_number}${refSuffix}). Qty: ${
+          tx.quantity || 1
+        } · Amount: ₹${tx.amount.toLocaleString(
+          'en-IN'
+        )}. Handover address: ${cleanAddress}. Awaiting seller verification.`,
+        'system',
+        {
+          receiptNumber: tx.receipt_number,
+          amount: tx.amount,
+          quantity: tx.quantity || 1,
+          paymentReference: cleanRef,
+        }
+      );
+    }
+
+    await refreshListings();
+    return createdTransactions;
+  };
+
   const submitPurchasePayment = async ({
     listingId,
     address,
@@ -1041,22 +1926,94 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     address: string;
     paymentReference?: string;
   }): Promise<PurchaseTransaction> => {
+    if (!user || !session?.access_token) {
+      throw new Error('Please log in to complete this purchase.');
+    }
     const targetListing = getListing(listingId);
-    if (!targetListing) throw new Error('Listing not found');
+    if (!targetListing) throw new Error('Listing not found.');
+    if (targetListing.status !== 'active') {
+      throw new Error('This listing is no longer available for purchase.');
+    }
+    if (targetListing.user_id === user.id) {
+      throw new Error('You cannot purchase your own listing.');
+    }
+
+    const cleanAddress = address.trim() || DEFAULT_CAMPUS_LOCATION;
+    const cleanRef = paymentReference?.trim() || undefined;
+    const nowIso = new Date().toISOString();
+
+    if (isSupabaseConfigured && supabase && isUuid(listingId)) {
+      await ensureCurrentUserProfileRow();
+      const { data: rpcPurchases, error: rpcErr } = await supabase.rpc('checkout_purchase', {
+        p_items: [{ listing_id: listingId, quantity: 1 }],
+        p_address: cleanAddress,
+        p_payment_reference: cleanRef || null,
+        p_clear_cart: true,
+      });
+
+      if (!rpcErr && Array.isArray(rpcPurchases) && rpcPurchases[0]) {
+        const row = rpcPurchases[0];
+        const newPurchase: PurchaseTransaction = {
+          id: row.id,
+          listing_id: listingId,
+          listing: targetListing,
+          buyer_id: user.id,
+          buyer: user,
+          seller_id: targetListing.user_id,
+          seller: targetListing.user,
+          amount: Number(row.amount) || targetListing.purchase_price || 0,
+          quantity: 1,
+          unit_price: targetListing.purchase_price,
+          checkout_group_id: row.checkout_group_id,
+          status: 'payment_submitted',
+          payment_method: 'UPI QR Payment',
+          payment_reference: cleanRef,
+          payment_confirmed_by_buyer: true,
+          payment_confirmed_at: nowIso,
+          payment_verification_status: 'Payment Submitted',
+          receipt_number: row.receipt_number,
+          shipping_address: cleanAddress,
+          created_at: row.created_at || nowIso,
+        };
+
+        setPurchases((prev) => [newPurchase, ...prev]);
+        setListings((prev) =>
+          prev.map((item) => (item.id === listingId ? { ...item, status: 'pending' } : item))
+        );
+        setCartItems((prev) => prev.filter((c) => c.listing_id !== listingId));
+
+        const convId = await startOrGetConversation(
+          listingId,
+          targetListing.user_id,
+          `Payment Submitted: ${targetListing.title}`
+        );
+        const refSuffix = cleanRef ? ` · UPI Ref: ${cleanRef}` : '';
+        await sendMessage(
+          convId,
+          `Payment confirmation submitted (Ref: ${newPurchase.receipt_number}${refSuffix}). Amount: ₹${newPurchase.amount.toLocaleString('en-IN')}. Handover address: ${cleanAddress}. Awaiting seller verification.`,
+          'system',
+          { receiptNumber: newPurchase.receipt_number, amount: newPurchase.amount, paymentReference: cleanRef }
+        );
+
+        await refreshListings();
+        return newPurchase;
+      } else if (rpcErr && rpcErr.code !== 'PGRST202') {
+        throw new Error(rpcErr.message);
+      }
+    }
 
     const receiptNumber = 'NRM-' + Math.floor(100000 + Math.random() * 900000);
-    const nowIso = new Date().toISOString();
-    const cleanRef = paymentReference?.trim() || undefined;
-
     const newPurchase: PurchaseTransaction = {
       id: crypto.randomUUID(),
       listing_id: listingId,
       listing: targetListing,
-      buyer_id: user?.id || 'guest-buyer',
-      buyer: user || undefined,
+      buyer_id: user.id,
+      buyer: user,
       seller_id: targetListing.user_id,
       seller: targetListing.user,
       amount: targetListing.purchase_price || 0,
+      quantity: 1,
+      unit_price: targetListing.purchase_price,
       status: 'payment_submitted',
       payment_method: 'UPI QR Payment',
       payment_reference: cleanRef,
@@ -1064,11 +2021,11 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       payment_confirmed_at: nowIso,
       payment_verification_status: 'Payment Submitted',
       receipt_number: receiptNumber,
-      shipping_address: address,
+      shipping_address: cleanAddress,
       created_at: nowIso,
     };
 
-    if (isSupabaseConfigured && supabase && user?.id) {
+    if (isSupabaseConfigured && supabase && isUuid(listingId)) {
       try {
         await supabase.from('purchases').insert([
           {
@@ -1084,19 +2041,19 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
             payment_confirmed_at: nowIso,
             payment_verification_status: 'Payment Submitted',
             receipt_number: receiptNumber,
-            shipping_address: address,
+            shipping_address: cleanAddress,
           },
         ]);
-      } catch (err) {
-        console.warn('Supabase purchase record fallback to local cache:', err);
+      } catch {
+        // ignore
       }
     }
 
     setPurchases((prev) => [newPurchase, ...prev]);
-
     setListings((prev) =>
       prev.map((item) => (item.id === listingId ? { ...item, status: 'pending' } : item))
     );
+    setCartItems((prev) => prev.filter((c) => c.listing_id !== listingId));
 
     const convId = await startOrGetConversation(
       listingId,
@@ -1107,7 +2064,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const refSuffix = cleanRef ? ` · UPI Ref: ${cleanRef}` : '';
     await sendMessage(
       convId,
-      `Payment confirmation submitted (Ref: ${receiptNumber}${refSuffix}). Amount: ₹${newPurchase.amount.toLocaleString('en-IN')}. Handover address: ${address}. Awaiting seller verification.`,
+      `Payment confirmation submitted (Ref: ${receiptNumber}${refSuffix}). Amount: ₹${newPurchase.amount.toLocaleString('en-IN')}. Handover address: ${cleanAddress}. Awaiting seller verification.`,
       'system',
       { receiptNumber, amount: newPurchase.amount, paymentReference: cleanRef }
     );
@@ -1123,6 +2080,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     if (isSupabaseConfigured && supabase && user?.id) {
       try {
+        await ensureCurrentUserProfileRow();
         await supabase.from('community_requests').insert([
           {
             id: newId,
@@ -1134,7 +2092,7 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
           },
         ]);
       } catch {
-        // fallback if table not migrated yet
+        // ignore
       }
     }
 
@@ -1196,6 +2154,9 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     <MarketplaceContext.Provider
       value={{
         listings,
+        isLoadingListings,
+        refreshListings,
+        fetchListingById,
         savedIds,
         rentalRequests,
         tradeOffers,
@@ -1219,8 +2180,25 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         getListing,
         createRentalRequest,
         updateRentalStatus,
+        tradeAccess,
+        isLoadingTradeAccess,
+        isAdmin,
+        subscriptionPayments,
+        adminSubscriptionPayments,
+        refreshTradeAccess,
+        refreshAdminSubscriptionPayments,
+        reviewSubscriptionPayment,
         createTradeOffer,
         updateTradeStatus,
+        recordSubscriptionPaymentSubmission,
+        cartItems: resolvedCartItems,
+        cartCount,
+        cartSubtotal,
+        addToCart,
+        removeFromCart,
+        updateCartQuantity,
+        clearCart,
+        checkoutCart,
         submitPurchasePayment,
         sendMessage,
         startOrGetConversation,

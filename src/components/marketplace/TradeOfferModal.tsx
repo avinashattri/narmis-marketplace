@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Listing } from '../../types';
 import { useMarketplace } from '../../context/MarketplaceContext';
 import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { X, Repeat, ArrowLeftRight, CheckCircle2, Plus, Minus } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { X, Repeat, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
 
 interface TradeOfferModalProps {
   listing: Listing;
@@ -16,7 +16,7 @@ export const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { createTradeOffer } = useMarketplace();
+  const { createTradeOffer, tradeAccess, isLoadingTradeAccess } = useMarketplace();
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -26,9 +26,10 @@ export const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
     listing.estimated_value ? String(Math.round(listing.estimated_value * 0.8)) : '2000'
   );
   const [cashAdjustmentStr, setCashAdjustmentStr] = useState<string>('0');
-  const [notes, setNotes] = useState('');
+  const [notes, _setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   if (!isOpen) return null;
 
@@ -45,8 +46,16 @@ export const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
       return;
     }
 
+    if (!tradeAccess.can_trade) {
+      setErrorMsg(
+        'You have used all 3 free trade trials. Please activate the ₹299 Annual Trade Pass to propose more trades.'
+      );
+      return;
+    }
+
     if (!offeredTitle.trim()) return;
 
+    setErrorMsg('');
     setIsSubmitting(true);
     try {
       await createTradeOffer({
@@ -60,8 +69,8 @@ export const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
         negotiation_notes: notes,
       });
       setIsSuccess(true);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Unable to submit trade proposal.');
     } finally {
       setIsSubmitting(false);
     }
@@ -137,6 +146,54 @@ export const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
                 </p>
               </div>
             </div>
+
+            {/* Trade Trial / Annual Pass Banner */}
+            <div
+              className={`p-3 rounded-2xl border text-xs flex items-center justify-between gap-3 ${
+                tradeAccess.can_trade
+                  ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-200'
+                  : 'bg-amber-950/60 border-amber-500/50 text-amber-200'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-narmis-gold shrink-0" />
+                <span>
+                  {isLoadingTradeAccess
+                    ? 'Checking Trade Pass status...'
+                    : tradeAccess.subscription_active
+                    ? `Trade Pass Active${
+                        tradeAccess.subscription_expires_at
+                          ? ` — Expires ${new Date(
+                              tradeAccess.subscription_expires_at
+                            ).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })}`
+                          : ''
+                      }`
+                    : tradeAccess.free_trials_remaining === 1
+                    ? '1 free offer remaining'
+                    : tradeAccess.free_trials_remaining > 1
+                    ? `${tradeAccess.free_trials_remaining} free offers remaining`
+                    : 'Free offers exhausted — Upgrade to Trade Pass'}
+                </span>
+              </div>
+              <Link
+                to="/subscription"
+                onClick={onClose}
+                className="px-2.5 py-1 rounded-lg bg-narmis-gold text-narmis-charcoal font-bold text-[11px] uppercase tracking-wider hover:bg-narmis-accent shrink-0"
+              >
+                {tradeAccess.subscription_active ? 'View Pass' : 'Get Trade Pass'}
+              </Link>
+            </div>
+
+            {errorMsg && (
+              <div className="p-3 rounded-xl bg-red-950/70 border border-red-500/50 text-xs text-red-200 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
 
             {/* My Offered Item fields */}
             <div className="space-y-3">

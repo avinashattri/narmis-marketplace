@@ -49,6 +49,8 @@ export const DashboardPage: React.FC = () => {
     purchases,
     updateRentalStatus,
     updateTradeStatus,
+    tradeAccess,
+    cartCount,
   } = useMarketplace();
 
   const navigate = useNavigate();
@@ -257,7 +259,25 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Link
+              to="/subscription"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-narmis-forestDark hover:bg-narmis-mountain border border-narmis-gold/40 text-narmis-parchment text-xs font-semibold transition-all"
+            >
+              <Repeat className="w-3.5 h-3.5 text-narmis-gold" />
+              <span>
+                {tradeAccess.subscription_active
+                  ? 'Trade Pass: Active'
+                  : `Trade Trials: ${tradeAccess.free_trials_remaining}/3`}
+              </span>
+            </Link>
+            <Link
+              to="/cart"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-narmis-forestDark hover:bg-narmis-mountain border border-emerald-500/40 text-emerald-200 text-xs font-semibold transition-all"
+            >
+              <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Cart ({cartCount})</span>
+            </Link>
             <Link
               to="/create-listing"
               className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-narmis-gold hover:bg-narmis-accent text-narmis-charcoal text-xs font-bold uppercase tracking-wider transition-all shadow-md"
